@@ -1,0 +1,45 @@
+name: kazi
+description: Kazi — On-demand jobs marketplace for Africa
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_bloc: ^8.1.3
+  equatable: ^2.0.5
+  go_router: ^12.1.1
+  dio: ^5.3.3
+  pretty_dio_logger: ^1.3.1
+  flutter_secure_storage: ^9.0.0
+  shared_preferences: ^2.2.2
+  geolocator: ^10.1.0
+  google_maps_flutter: ^2.5.0
+  geocoding: ^2.1.1
+  web_socket_channel: ^2.4.0
+  image_picker: ^1.0.4
+  cached_network_image: ^3.3.0
+  flutter_svg: ^2.0.9
+  shimmer: ^3.0.0
+  intl: ^0.20.2
+  timeago: ^3.6.0
+  pinput: ^5.0.2
+  permission_handler: ^11.1.0
+  uuid: ^4.2.1
+  logger: ^2.0.2+1
+  phone_form_field: ^9.1.0+1
+  google_fonts: ^6.1.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^3.0.1
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/images/
+    - assets/icons/
