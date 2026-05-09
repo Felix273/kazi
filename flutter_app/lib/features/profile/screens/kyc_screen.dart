@@ -1,6 +1,12 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
-import '../../../core/theme.dart';
-import '../../../shared/widgets/kazi_button.dart';
+import 'package:image_picker/image_picker.dart';
+
+import '../../core/services/api_client.dart';
+import '../../core/theme.dart';
+import '../../shared/widgets/kazi_button.dart';
+
 
 class KycScreen extends StatefulWidget {
   const KycScreen({super.key});
@@ -9,8 +15,110 @@ class KycScreen extends StatefulWidget {
 }
 
 class _KycScreenState extends State<KycScreen> {
-  final _idCtrl = TextEditingController();
+  final _picker = ImagePicker();
+  String? _idImageBase64;
+  String? _selfieBase64;
   bool _isLoading = false;
+
+  Future<void> _pickImage(bool isSelfie) async {
+    try {
+      final XFile? image = await _picker.pickImage(
+        source: ImageSource.camera,
+        imageQuality: 80,
+      );
+      if (image == null) return;
+
+      final bytes = await image.readAsBytes();
+      final base64 = 'data:image/jpeg;base64,${base64Encode(bytes)}';
+
+      setState(() {
+        if (isSelfie) {
+          _selfieBase64 = base64;
+        } else {
+          _idImageBase64 = base64;
+        }
+      });
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Failed to pick image')),
+        );
+      }
+    }
+  }
+
+  Future<void> _submit() async {
+    if (_idImageBase64 == null || _selfieBase64 == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please capture both ID and selfie photos')),
+      );
+      return;
+    }
+
+    setState(() => _isLoading = true);
+    try {
+      final api = context.read<ApiClient>();
+      await api.submitKYC({
+        'id_image': _idImageBase64!,
+        'selfie_image': _selfieBase64!,
+        'id_type': 'national_id',
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Verification submitted. Results will be sent shortly.')),
+        );
+        Navigator.pop(context);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Verification failed: ${e.toString()}')),
+        );
+      }
+    } finally {
+      setState(() => _isLoading = false);
+    }
+  }
+
+  Widget _buildImagePicker(String label, String? imageBase64, VoidCallback onTap) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label, style: KaziText.label),
+        const SizedBox(height: KaziSpacing.sm),
+        GestureDetector(
+          onTap: onTap,
+          child: Container(
+            height: 120,
+            width: double.infinity,
+            decoration: BoxDecoration(
+              color: imageBase64 != null ? KaziTheme.success.withOpacity(0.1) : KaziTheme.surfaceWarm,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color: imageBase64 != null ? KaziTheme.success : KaziTheme.border,
+                style: BorderStyle.solid,
+              ),
+            ),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  imageBase64 != null ? Icons.check_circle : Icons.camera_alt_outlined,
+                  color: imageBase64 != null ? KaziTheme.success : KaziTheme.textHint,
+                  size: 32,
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  imageBase64 != null ? '$label Captured' : 'Tap to take $label photo',
+                  style: KaziText.caption,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -32,7 +140,7 @@ class _KycScreenState extends State<KycScreen> {
               child: Row(
                 children: [
                   Icon(Icons.info_outline_rounded, color: KaziTheme.info, size: 20),
-                  SizedBox(width: KaziSpacing.sm),
+                  const SizedBox(width: KaziSpacing.sm),
                   Expanded(
                     child: Text(
                       'Verified workers get 3x more job matches and higher employer trust.',
@@ -43,43 +151,13 @@ class _KycScreenState extends State<KycScreen> {
               ),
             ),
             const SizedBox(height: KaziSpacing.xl),
-            Text('National ID Number', style: KaziText.label),
-            const SizedBox(height: KaziSpacing.sm),
-            TextField(
-              controller: _idCtrl,
-              keyboardType: TextInputType.number,
-              decoration: const InputDecoration(
-                hintText: 'e.g. 12345678',
-                prefixIcon: Icon(Icons.badge_outlined, color: KaziTheme.textHint),
-              ),
-            ),
+            _buildImagePicker('ID Photo', _idImageBase64, () => _pickImage(false)),
             const SizedBox(height: KaziSpacing.lg),
-            Text('ID Photo', style: KaziText.label),
-            const SizedBox(height: KaziSpacing.sm),
-            GestureDetector(
-              onTap: () {}, // TODO: Image picker
-              child: Container(
-                height: 120,
-                width: double.infinity,
-                decoration: BoxDecoration(
-                  color: KaziTheme.surfaceWarm,
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: KaziTheme.border, style: BorderStyle.solid),
-                ),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(Icons.camera_alt_outlined, color: KaziTheme.textHint, size: 32),
-                    SizedBox(height: 8),
-                    Text('Tap to upload ID photo', style: KaziText.caption),
-                  ],
-                ),
-              ),
-            ),
+            _buildImagePicker('Selfie Photo', _selfieBase64, () => _pickImage(true)),
             const Spacer(),
             KaziButton(
               label: 'Submit for Verification',
-              onPressed: () {},
+              onPressed: _submit,
               isLoading: _isLoading,
             ),
           ],

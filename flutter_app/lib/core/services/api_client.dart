@@ -60,6 +60,11 @@ class ApiClient {
   Future<Response> getSkills({String? category}) =>
       _dio.get('/users/skills/', queryParameters: category != null ? {'category': category} : null);
   Future<Response> getPublicProfile(String userId) => _dio.get('/users/profile/$userId/');
+  Future<Response> submitKYC(Map<String, dynamic> data) =>
+      _dio.post('/users/kyc/submit/', data: data);
+  Future<Response> getKYCStatus() => _dio.get('/users/kyc/status/');
+  Future<Response> updateWorkerProfile(Map<String, dynamic> data) =>
+      _dio.put('/users/me/worker-profile/', data: data);
 
   // Jobs
   Future<Response> getJobs({Map<String, dynamic>? filters}) =>
@@ -77,7 +82,10 @@ class ApiClient {
   Future<Response> completeJob(String jobId) => _dio.post('/jobs/$jobId/complete/');
   Future<Response> cancelJob(String jobId, {String? reason}) =>
       _dio.post('/jobs/$jobId/cancel/', data: {'reason': reason ?? ''});
+  Future<Response> disputeJob(String jobId, {String? reason}) =>
+      _dio.post('/jobs/$jobId/dispute/', data: {'reason': reason ?? ''});
   Future<Response> getJobApplications(String jobId) => _dio.get('/jobs/$jobId/applications/');
+  Future<Response> getMyApplications() => _dio.get('/jobs/my-applications/');
   Future<Response> submitReview(String jobId, int rating, String comment) =>
       _dio.post('/jobs/$jobId/review/', data: {'rating': rating, 'comment': comment});
 
@@ -85,6 +93,8 @@ class ApiClient {
   Future<Response> initiatePayment(String jobId, String payerPhone) =>
       _dio.post('/payments/initiate/', data: {'job_id': jobId, 'payer_phone': payerPhone});
   Future<Response> getPaymentStatus(String jobId) => _dio.get('/payments/$jobId/status/');
+  Future<Response> initiateWithdrawal(double amount, String phone) =>
+      _dio.post('/payments/withdraw/', data: {'amount': amount, 'phone_number': phone});
 
   // Chat
   Future<Response> getChatRoom(String jobId) => _dio.get('/chat/$jobId/');
@@ -94,6 +104,7 @@ class ApiClient {
   // Notifications
   Future<Response> getNotifications() => _dio.get('/notifications/');
   Future<Response> markNotificationRead(String id) => _dio.post('/notifications/$id/read/');
+  Future<Response> markAllNotificationsRead() => _dio.post('/notifications/mark-all-read/');
 }
 
 class _AuthInterceptor extends Interceptor {
