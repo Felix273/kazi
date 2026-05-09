@@ -130,3 +130,32 @@ class NotificationService:
             body=f'New message about: {job.title}',
             data={'room_id': str(job.chat_room.id), 'screen': 'chat'},
         )
+
+    def notify_job_started(self, employer, job):
+        self._send(
+            user=employer,
+            notification_type=Notification.NotificationType.JOB_STARTED,
+            title='Job started',
+            body=f'{job.assigned_worker.full_name} started working on "{job.title}".',
+            data={'job_id': str(job.id), 'screen': 'job_detail'},
+        )
+
+    def notify_job_cancelled(self, employer, job):
+        recipient = employer if job.employer == employer else job.assigned_worker
+        self._send(
+            user=recipient,
+            notification_type=Notification.NotificationType.JOB_CANCELLED,
+            title='Job cancelled',
+            body=f'"{job.title}" has been cancelled.',
+            data={'job_id': str(job.id), 'screen': 'job_detail'},
+        )
+
+    def notify_job_disputed(self, employer, job):
+        recipient = employer if job.employer == employer else job.assigned_worker
+        self._send(
+            user=recipient,
+            notification_type=Notification.NotificationType.JOB_DISPUTED,
+            title='Job disputed',
+            body=f'"{job.title}" has been marked as disputed.',
+            data={'job_id': str(job.id), 'screen': 'job_detail'},
+        )

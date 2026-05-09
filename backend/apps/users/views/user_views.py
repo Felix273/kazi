@@ -5,12 +5,18 @@ from rest_framework import status
 from django.contrib.gis.geos import Point
 from django.contrib.gis.db.models.functions import Distance
 from django.contrib.gis.measure import D
+from django.conf import settings
+import logging
 
 from apps.users.models import User, Skill, WorkerProfile
 from apps.users.serializers import (
     UserSerializer, UpdateProfileSerializer,
-    UpdateLocationSerializer, UpdateFCMTokenSerializer, SkillSerializer
+    UpdateLocationSerializer, UpdateFCMTokenSerializer, SkillSerializer,
+    SubmitKYCSerializer, WorkerProfileUpdateSerializer
 )
+from apps.users.services.smile_identity_service import SmileIdentityService
+
+logger = logging.getLogger(__name__)
 
 
 class MyProfileView(RetrieveUpdateAPIView):
@@ -133,3 +139,74 @@ class SkillListView(ListAPIView):
         if category:
             qs = qs.filter(category=category)
         return qs
+
+
+class SubmitKYCView(APIView):
+    """Submit ID verification to Smile Identity"""
+
+    def post(self, request):
+        serializer = SubmitKYCSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        if request.user.verification_status == 'verified':
+            return Response({'detail': 'Already verified.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        service = SmileIdentityService()
+        result = service.submit_verification(
+            request.user,
+            serializer.validated_data['id_image'],
+            serializer.validated_data['selfie_image'],
+            serializer.validated_data['id_type']
+        )
+
+        if result['success']:
+            return Response({'detail': 'Verification submitted. Results will be sent shortly.'})
+        return Response({'detail': result.get('error', 'Submission failed')}, status=status.HTTP_400_BAD_REQUEST)
+
+
+class KYCStatusView(APIView):
+    """Check KYC verification status"""
+
+    def get(self, request):
+        service = SmileIdentityService()
+        result = service.check_verification_status(request.user)
+
+        if result['success']:
+            return Response({
+                'status': request.user.verification_status,
+                'job_id': request.user.smile_identity_job_id
+            })
+        return Response({'detail': result.get('error', 'Status check failed')}, status=status.HTTP_400_BAD_REQUEST)
+
+
+class WorkerProfileUpdateView(APIView):
+    """Update worker profile (skills, hourly rate, availability, etc.)"""
+
+    def put(self, request):
+        if request.user.user_type != 'worker':
+            return Response({'detail': 'Only workers can update this profile.'}, status=status.HTTP_403_FORBIDDEN)
+
+        profile, _ = WorkerProfile.objects.get_or_create(user=request.user)
+        serializer = WorkerProfileUpdateSerializer(profile, data=request.data)
+
+        if serializer.is_valid():
+            serializer.save()
+            return Response(UserSerializer(request.user).data)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+class SmileIdentityWebhookView(APIView):
+    """Public webhook endpoint for Smile Identity callbacks"""
+
+    authentication_classes = []
+    permission_classes = []
+
+    def post(self, request):
+        signature = request.headers.get('X-Smile-Signature')
+        if not signature or signature != settings.SMILE_IDENTITY.get('WEBHOOK_SECRET'):
+            return Response(status=status.HTTP_403_FORBIDDEN)
+
+        service = SmileIdentityService()
+        result = service.process_webhook(request.data)
+        return Response({'success': result['success']})

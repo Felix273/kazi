@@ -115,3 +115,37 @@ class UpdateLocationSerializer(serializers.Serializer):
 
 class UpdateFCMTokenSerializer(serializers.Serializer):
     fcm_token = serializers.CharField(max_length=500)
+
+
+class SubmitKYCSerializer(serializers.Serializer):
+    id_image = serializers.CharField(help_text='Base64 encoded ID image')
+    selfie_image = serializers.CharField(help_text='Base64 encoded selfie image')
+    id_type = serializers.ChoiceField(choices=['national_id', 'passport', 'driving_license'], default='national_id')
+
+    def validate_id_image(self, value):
+        if not value.startswith('data:image'):
+            raise serializers.ValidationError('Invalid image format. Expected base64 data URL.')
+        return value
+
+    def validate_selfie_image(self, value):
+        if not value.startswith('data:image'):
+            raise serializers.ValidationError('Invalid image format. Expected base64 data URL.')
+        return value
+
+
+class WorkerProfileUpdateSerializer(serializers.ModelSerializer):
+    skills = serializers.ListField(
+        child=serializers.IntegerField(),
+        required=False,
+        write_only=True
+    )
+
+    class Meta:
+        model = WorkerProfile
+        fields = ['is_available', 'hourly_rate', 'experience_years', 'skills']
+
+    def update(self, instance, validated_data):
+        skills_ids = validated_data.pop('skills', None)
+        if skills_ids is not None:
+            instance.skills.set(skills_ids)
+        return super().update(instance, validated_data)

@@ -157,3 +157,37 @@ class IntaSendService:
             payment.status = Payment.Status.PENDING  # Allow retry
             payment.save(update_fields=['status'])
             logger.warning(f"Payment {payment.id} failed via webhook")
+
+
+    def initiate_withdrawal(self, withdrawal) -> dict:
+        """Initiate withdrawal to worker's M-Pesa"""
+        payload = {
+            'currency': 'KES',
+            'transactions': [{
+                'account': withdrawal.phone_number,
+                'amount': str(withdrawal.amount),
+                'narrative': f'Kazi withdrawal — {withdrawal.id}',
+            }],
+        }
+
+        try:
+            response = requests.post(
+                f'{INTASEND_BASE_URL}/send-money/mpesa/',
+                json=payload,
+                headers=self.secret_headers,
+                timeout=30
+            )
+            response.raise_for_status()
+            data = response.json()
+
+            withdrawal.status = withdrawal.Status.PROCESSING
+            withdrawal.save(update_fields=['status'])
+
+            logger.info(f"Withdrawal {withdrawal.id} initiated")
+            return {'success': True, 'data': data}
+
+        except requests.RequestException as e:
+            logger.error(f"IntaSend withdrawal failed for {withdrawal.id}: {e}")
+            withdrawal.status = withdrawal.Status.FAILED
+            withdrawal.save(update_fields=['status'])
+            return {'success': False, 'error': str(e)}

@@ -12,6 +12,8 @@ class Notification(models.Model):
         APPLICATION_ACCEPTED = 'application_accepted', 'Application Accepted'
         JOB_STARTED = 'job_started', 'Job Started'
         JOB_COMPLETED = 'job_completed', 'Job Completed'
+        JOB_CANCELLED = 'job_cancelled', 'Job Cancelled'
+        JOB_DISPUTED = 'job_disputed', 'Job Disputed'
         PAYMENT_HELD = 'payment_held', 'Payment Secured'
         PAYMENT_RELEASED = 'payment_released', 'Payment Released'
         NEW_MESSAGE = 'new_message', 'New Message'

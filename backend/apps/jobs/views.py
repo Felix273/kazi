@@ -22,7 +22,7 @@ class JobListView(ListAPIView):
     serializer_class = JobSerializer
 
     def get_queryset(self):
-        qs = Job.objects.filter(status='open').select_related('employer')
+        qs = Job.objects.filter(status='open').select_related('employer').prefetch_related('required_skills')
         category = self.request.query_params.get('category')
         if category and category != 'all':
             qs = qs.filter(category=category)
@@ -191,6 +191,7 @@ class CompleteJobView(APIView):
                 payment = job.payment
                 if payment.status == Payment.Status.HELD:
                     IntaSendService().release_to_worker(payment)
+                    NotificationService().notify_payment_released(payment)
             except Payment.DoesNotExist:
                 pass
 
@@ -264,3 +265,61 @@ class SubmitReviewView(APIView):
         reviewee.save(update_fields=['average_rating', 'total_reviews'])
 
         return Response(ReviewSerializer(review).data, status=status.HTTP_201_CREATED)
+
+
+class WorkerApplicationsView(APIView):
+    """List the logged-in worker's job applications"""
+    def get(self, request):
+        applications = JobApplication.objects.filter(
+            worker=request.user
+        ).select_related('job').order_by('-created_at')
+        return Response(JobApplicationSerializer(applications, many=True).data)
+
+
+class StartJobView(APIView):
+    def post(self, request, pk):
+        try:
+            job = Job.objects.get(pk=pk, assigned_worker=request.user, status='assigned')
+        except Job.DoesNotExist:
+            return Response({'detail': 'Job not found or cannot be started.'}, status=status.HTTP_404_NOT_FOUND)
+
+        job.status = Job.Status.IN_PROGRESS
+        job.save(update_fields=['status'])
+        NotificationService().notify_job_started(job.employer, job)
+        return Response({'detail': 'Job started.'})
+
+
+class CancelJobView(APIView):
+    def post(self, request, pk):
+        try:
+            job = Job.objects.get(pk=pk)
+        except Job.DoesNotExist:
+            return Response({'detail': 'Job not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+        if request.user != job.employer and request.user != job.assigned_worker:
+            return Response({'detail': 'Not authorized.'}, status=status.HTTP_403_FORBIDDEN)
+
+        if job.status not in ['open', 'assigned', 'in_progress']:
+            return Response({'detail': 'Job cannot be cancelled.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        job.status = Job.Status.CANCELLED
+        job.save(update_fields=['status'])
+        NotificationService().notify_job_cancelled(job.employer, job)
+        return Response({'detail': 'Job cancelled.'})
+
+
+class DisputeJobView(APIView):
+    def post(self, request, pk):
+        try:
+            job = Job.objects.get(pk=pk, status__in=['assigned', 'in_progress', 'completed'])
+        except Job.DoesNotExist:
+            return Response({'detail': 'Job not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+        if request.user != job.employer and request.user != job.assigned_worker:
+            return Response({'detail': 'Not authorized.'}, status=status.HTTP_403_FORBIDDEN)
+
+        job.status = Job.Status.DISPUTED
+        job.dispute_reason = request.data.get('reason', '')
+        job.save(update_fields=['status', 'dispute_reason'])
+        NotificationService().notify_job_disputed(job.employer, job)
+        return Response({'detail': 'Job marked as disputed.'})
