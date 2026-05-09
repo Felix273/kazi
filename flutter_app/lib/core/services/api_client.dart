@@ -4,7 +4,8 @@ import 'storage_service.dart';
 
 const String baseUrl = String.fromEnvironment(
   'API_BASE_URL',
-  defaultValue: 'http://10.0.2.2:8000/api/v1', // Android emulator localhost
+  // Must be set via --dart-define or in build configuration
+  // Example: flutter run --dart-define=API_BASE_URL=http://localhost:8000/api/v1
 );
 
 class ApiClient {
