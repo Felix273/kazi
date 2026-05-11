@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/theme.dart';
+import '../../../core/services/api_client.dart';
 import '../../../shared/widgets/kazi_button.dart';
+import '../bloc/job_applications_bloc.dart';
 
 class JobApplicationsScreen extends StatelessWidget {
   final String jobId;
@@ -9,26 +12,86 @@ class JobApplicationsScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // TODO: Wire up JobApplicationsBloc
-    return Scaffold(
-      backgroundColor: KaziTheme.background,
-      appBar: AppBar(title: const Text('Applications')),
-      body: ListView.separated(
-        padding: const EdgeInsets.all(KaziSpacing.md),
-        itemCount: 3,
-        separatorBuilder: (_, __) => const SizedBox(height: KaziSpacing.md),
-        itemBuilder: (context, i) => _ApplicationCard(
-          name: ['Grace K.', 'Peter M.', 'Amina W.'][i],
-          rating: [4.9, 4.6, 4.8][i],
-          totalJobs: [34, 12, 28][i],
-          isVerified: [true, false, true][i],
-          coverNote: i == 0
-              ? 'I have 5 years of professional cleaning experience. I can start immediately.'
-              : null,
-          jobId: jobId,
-          applicationId: 'app_$i',
-        ),
-      ),
+    return BlocProvider(
+      create: (context) => JobApplicationsBloc(context.read<ApiClient>())
+        ..add(FetchJobApplicationsEvent(jobId)),
+      child: _JobApplicationsView(jobId: jobId),
+    );
+  }
+}
+
+class _JobApplicationsView extends StatelessWidget {
+  final String jobId;
+  const _JobApplicationsView({required this.jobId});
+
+  @override
+  Widget build(BuildContext context) {
+    return BlocConsumer<JobApplicationsBloc, JobApplicationsState>(
+      listener: (context, state) {
+        if (state is AcceptApplicationSuccess) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: const Text('Worker hired! Chat room created.'),
+              backgroundColor: KaziTheme.success,
+            ),
+          );
+          // Navigate to chat or back
+          context.pop();
+        } else if (state is JobApplicationsError) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(state.error), backgroundColor: KaziTheme.error),
+          );
+        }
+      },
+      builder: (context, state) {
+        if (state is JobApplicationsLoading) {
+          return const Scaffold(body: Center(child: CircularProgressIndicator()));
+        }
+
+        if (state is JobApplicationsError && state is! JobApplicationsLoaded) {
+          return Scaffold(
+            appBar: AppBar(title: const Text('Applications')),
+            body: Center(child: Text(state.error)),
+          );
+        }
+
+        final applications = state is JobApplicationsLoaded
+            ? state.applications
+            : (state is AcceptApplicationLoading || state is AcceptApplicationSuccess)
+                ? (context.read<JobApplicationsBloc>().state as JobApplicationsLoaded).applications
+                : [];
+
+        if (applications.isEmpty) {
+          return Scaffold(
+            appBar: AppBar(title: const Text('Applications')),
+            body: const Center(child: Text('No applications yet.')),
+          );
+        }
+
+        return Scaffold(
+          backgroundColor: KaziTheme.background,
+          appBar: AppBar(title: const Text('Applications')),
+          body: ListView.separated(
+            padding: const EdgeInsets.all(KaziSpacing.md),
+            itemCount: applications.length,
+            separatorBuilder: (_, __) => const SizedBox(height: KaziSpacing.md),
+            itemBuilder: (context, i) {
+              final app = applications[i];
+              final worker = app['worker_detail'];
+              return _ApplicationCard(
+                name: '${worker['first_name']} ${worker['last_name']}',
+                rating: double.parse(worker['average_rating'].toString()),
+                totalJobs: worker['total_jobs_completed'],
+                isVerified: worker['is_verified'],
+                coverNote: app['cover_note'],
+                jobId: jobId,
+                applicationId: app['id'],
+                isLoading: state is AcceptApplicationLoading,
+              );
+            },
+          ),
+        );
+      },
     );
   }
 }
@@ -41,6 +104,7 @@ class _ApplicationCard extends StatelessWidget {
   final String? coverNote;
   final String jobId;
   final String applicationId;
+  final bool isLoading;
 
   const _ApplicationCard({
     required this.name,
@@ -50,6 +114,7 @@ class _ApplicationCard extends StatelessWidget {
     this.coverNote,
     required this.jobId,
     required this.applicationId,
+    this.isLoading = false,
   });
 
   @override
@@ -69,10 +134,13 @@ class _ApplicationCard extends StatelessWidget {
               CircleAvatar(
                 radius: 24,
                 backgroundColor: KaziTheme.primary.withOpacity(0.1),
-                child: Text(name[0], style: const TextStyle(
-                  fontFamily: 'Sora', fontWeight: FontWeight.w700,
-                  color: KaziTheme.primary, fontSize: 18,
-                )),
+                child: Text(name[0],
+                    style: const TextStyle(
+                      fontFamily: 'Sora',
+                      fontWeight: FontWeight.w700,
+                      color: KaziTheme.primary,
+                      fontSize: 18,
+                    )),
               ),
               const SizedBox(width: KaziSpacing.md),
               Expanded(
@@ -100,8 +168,7 @@ class _ApplicationCard extends StatelessWidget {
               ),
             ],
           ),
-
-          if (coverNote != null) ...[
+          if (coverNote != null && coverNote!.isNotEmpty) ...[
             const SizedBox(height: KaziSpacing.md),
             Container(
               padding: const EdgeInsets.all(KaziSpacing.sm),
@@ -112,14 +179,13 @@ class _ApplicationCard extends StatelessWidget {
               child: Text(coverNote!, style: KaziText.body),
             ),
           ],
-
           const SizedBox(height: KaziSpacing.md),
           Row(
             children: [
               Expanded(
                 child: KaziButton(
                   label: 'Accept',
-                  onPressed: () => _acceptDialog(context),
+                  onPressed: isLoading ? null : () => _acceptDialog(context),
                 ),
               ),
               const SizedBox(width: KaziSpacing.sm),
@@ -127,7 +193,7 @@ class _ApplicationCard extends StatelessWidget {
                 child: KaziButton(
                   label: 'View Profile',
                   isOutlined: true,
-                  onPressed: () {},
+                  onPressed: () => context.push('/profile/${worker['id']}'),
                 ),
               ),
             ],
@@ -143,8 +209,7 @@ class _ApplicationCard extends StatelessWidget {
       builder: (_) => AlertDialog(
         title: Text('Hire this worker?', style: KaziText.h3),
         content: Text(
-          'You\'re about to hire $name. A chat room will be created and '
-          'you\'ll be prompted to secure payment via M-Pesa.',
+          "You're about to hire $name. A chat room will be created and you'll be prompted to secure payment via M-Pesa.",
           style: KaziText.body,
         ),
         actions: [
@@ -155,13 +220,10 @@ class _ApplicationCard extends StatelessWidget {
           ElevatedButton(
             onPressed: () {
               Navigator.pop(context);
-              // TODO: trigger AcceptApplicationBloc event
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text('$name hired! Chat room created.'),
-                  backgroundColor: KaziTheme.success,
-                ),
-              );
+              context.read<JobApplicationsBloc>().add(AcceptApplicationEvent(
+                    jobId: jobId,
+                    applicationId: applicationId,
+                  ));
             },
             child: const Text('Hire'),
           ),

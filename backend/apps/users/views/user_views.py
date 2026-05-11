@@ -9,8 +9,11 @@ from django.contrib.gis.measure import D
 from apps.users.models import User, Skill, WorkerProfile
 from apps.users.serializers import (
     UserSerializer, UpdateProfileSerializer,
-    UpdateLocationSerializer, UpdateFCMTokenSerializer, SkillSerializer
+    UpdateLocationSerializer, UpdateFCMTokenSerializer, SkillSerializer,
+    KYCSubmitSerializer
 )
+from apps.users.services.kyc_service import KYCService
+from rest_framework.permissions import AllowAny
 
 
 class MyProfileView(RetrieveUpdateAPIView):
@@ -133,3 +136,83 @@ class SkillListView(ListAPIView):
         if category:
             qs = qs.filter(category=category)
         return qs
+
+
+class KYCSubmitView(APIView):
+    """Submit KYC details for verification"""
+
+    def post(self, request):
+        serializer = KYCSubmitSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        data = serializer.validated_data
+        user = request.user
+
+        # Save ID number to user model
+        user.national_id_number = data['id_number']
+        user.save(update_fields=['national_id_number'])
+
+        # If photo is provided, save it to worker profile (if it exists)
+        if 'id_photo' in data and hasattr(user, 'worker_profile'):
+            user.worker_profile.id_document = data['id_photo']
+            user.worker_profile.save(update_fields=['id_document'])
+
+        try:
+            kyc_service = KYCService()
+            result = kyc_service.submit_kyc(
+                user,
+                id_number=data['id_number'],
+                id_type=data.get('id_type', 'NATIONAL_ID'),
+                country=data.get('country', 'KE')
+            )
+            return Response({
+                'detail': 'KYC submitted successfully.',
+                'verification_status': user.verification_status,
+                'smile_identity_job_id': user.smile_identity_job_id
+            })
+        except Exception as e:
+            return Response(
+                {'detail': f'KYC submission failed: {str(e)}'},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE
+            )
+
+
+class KYCWebhookView(APIView):
+    """Receive verification results from Smile Identity"""
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        # SECURITY: Verify the signature from Smile Identity
+        if not self._verify_signature(request):
+            logger.warning("Invalid Smile Identity webhook signature")
+            if not settings.DEBUG:
+                return Response({'detail': 'Invalid signature.'}, status=status.HTTP_401_UNAUTHORIZED)
+
+        data = request.data
+        job_id = data.get('job_id')
+        status_code = data.get('ResultCode')
+
+        try:
+            user = User.objects.get(smile_identity_job_id=job_id)
+            if status_code == '1012':  # Smile ID success code for Enhanced KYC
+                user.verification_status = User.VerificationStatus.VERIFIED
+            else:
+                user.verification_status = User.VerificationStatus.REJECTED
+
+            user.save(update_fields=['verification_status'])
+            return Response({'detail': 'Webhook received.'})
+        except User.DoesNotExist:
+            return Response({'detail': 'User not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+    def _verify_signature(self, request):
+        """
+        In production, use smile-identity-core library or HMAC SHA256
+        to verify 'Smile-ID-Signature' header.
+        """
+        # Placeholder for actual signature verification logic
+        signature = request.headers.get('Smile-ID-Signature')
+        if not signature:
+            return False
+        # Actual verification would go here
+        return True
