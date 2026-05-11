@@ -60,6 +60,22 @@ class ApiClient {
       _dio.get('/users/skills/', queryParameters: category != null ? {'category': category} : null);
   Future<Response> getPublicProfile(String userId) => _dio.get('/users/profile/$userId/');
 
+  Future<Response> submitKYC({
+    required String idNumber,
+    String idType = 'NATIONAL_ID',
+    String country = 'KE',
+    String? idPhotoPath,
+  }) async {
+    final formData = FormData.fromMap({
+      'id_number': idNumber,
+      'id_type': idType,
+      'country': country,
+      if (idPhotoPath != null)
+        'id_photo': await MultipartFile.fromFile(idPhotoPath, filename: 'id_photo.jpg'),
+    });
+    return _dio.post('/users/kyc/submit/', data: formData);
+  }
+
   // Jobs
   Future<Response> getJobs({Map<String, dynamic>? filters}) =>
       _dio.get('/jobs/', queryParameters: filters);

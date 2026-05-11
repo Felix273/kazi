@@ -20,6 +20,13 @@ def validate_kenyan_phone(phone):
     return phone
 
 
+class KYCSubmitSerializer(serializers.Serializer):
+    id_number = serializers.CharField(max_length=20)
+    id_type = serializers.CharField(max_length=50, default='NATIONAL_ID')
+    country = serializers.CharField(max_length=2, default='KE')
+    id_photo = serializers.ImageField(required=False)
+
+
 class RequestOTPSerializer(serializers.Serializer):
     phone_number = serializers.CharField(max_length=15)
 
