@@ -5,6 +5,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'core/theme.dart';
 import 'core/router.dart';
 import 'features/auth/bloc/auth_bloc.dart';
+import 'features/jobs/bloc/jobs_bloc.dart';
 import 'features/auth/repositories/auth_repository.dart';
 import 'core/services/api_client.dart';
 import 'core/services/storage_service.dart';

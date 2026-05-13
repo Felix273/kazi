@@ -5,7 +5,7 @@ from datetime import timedelta
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-SECRET_KEY = config('SECRET_KEY', default='django-insecure-change-this-in-production')
+SECRET_KEY = config('SECRET_KEY')
 DEBUG = config('DEBUG', default=True, cast=bool)
 ALLOWED_HOSTS = config('ALLOWED_HOSTS', default='*').split(',')
 
@@ -73,7 +73,7 @@ DATABASES = {
         'ENGINE': 'django.contrib.gis.db.backends.postgis',
         'NAME': config('DB_NAME', default='kazi_db'),
         'USER': config('DB_USER', default='postgres'),
-        'PASSWORD': config('DB_PASSWORD', default='password'),
+        'PASSWORD': config('DB_PASSWORD'),  # No default for security
         'HOST': config('DB_HOST', default='localhost'),
         'PORT': config('DB_PORT', default='5432'),
     }
@@ -112,21 +112,21 @@ CORS_ALLOW_ALL_ORIGINS = DEBUG
 CORS_ALLOWED_ORIGINS = config('CORS_ALLOWED_ORIGINS', default='').split(',')
 
 # Africa's Talking — OTP SMS
-AFRICASTALKING_USERNAME = config('AFRICASTALKING_USERNAME', default='sandbox')
-AFRICASTALKING_API_KEY = config('AFRICASTALKING_API_KEY', default='')
+AFRICASTALKING_USERNAME = config('AFRICASTALKING_USERNAME')  # No default - must be set
+AFRICASTALKING_API_KEY = config('AFRICASTALKING_API_KEY')  # No default - must be set
 AFRICASTALKING_SENDER_ID = config('AFRICASTALKING_SENDER_ID', default='KAZI')
 
 # IntaSend — M-Pesa payments
-INTASEND_PUBLIC_KEY = config('INTASEND_PUBLIC_KEY', default='')
-INTASEND_SECRET_KEY = config('INTASEND_SECRET_KEY', default='')
+INTASEND_PUBLIC_KEY = config('INTASEND_PUBLIC_KEY')  # No default - must be set
+INTASEND_SECRET_KEY = config('INTASEND_SECRET_KEY')  # No default - must be set
 INTASEND_TEST_MODE = config('INTASEND_TEST_MODE', default=True, cast=bool)
 
 # Smile Identity — KYC verification
-SMILE_IDENTITY_PARTNER_ID = config('SMILE_IDENTITY_PARTNER_ID', default='')
-SMILE_IDENTITY_API_KEY = config('SMILE_IDENTITY_API_KEY', default='')
+SMILE_IDENTITY_PARTNER_ID = config('SMILE_IDENTITY_PARTNER_ID')  # No default - must be set
+SMILE_IDENTITY_API_KEY = config('SMILE_IDENTITY_API_KEY')  # No default - must be set
 
 # Firebase — Push notifications
-FIREBASE_SERVER_KEY = config('FIREBASE_SERVER_KEY', default='')
+FIREBASE_SERVER_KEY = config('FIREBASE_SERVER_KEY')  # No default - must be set
 
 # OTP settings
 OTP_EXPIRY_MINUTES = 10

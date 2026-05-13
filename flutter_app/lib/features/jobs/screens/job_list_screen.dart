@@ -4,6 +4,8 @@ import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../core/theme.dart';
 import '../../auth/bloc/auth_bloc.dart';
+import '../bloc/jobs_bloc.dart';
+import '../models/job_model.dart';
 import '../widgets/job_card.dart';
 
 class JobListScreen extends StatefulWidget {
@@ -21,6 +23,13 @@ class _JobListScreenState extends State<JobListScreen> {
     ('errands', 'Errands'),
     ('digital', 'Digital'),
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    // Load initial jobs
+    context.read<JobsBloc>().add(LoadJobsEvent(category: _selectedCategory));
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -114,7 +123,11 @@ class _JobListScreenState extends State<JobListScreen> {
                     return Padding(
                       padding: const EdgeInsets.only(right: 8),
                       child: GestureDetector(
-                        onTap: () => setState(() => _selectedCategory = id),
+                        onTap: () {
+                          setState(() => _selectedCategory = id);
+                          // Reload jobs with new category
+                          context.read<JobsBloc>().add(LoadJobsEvent(category: _selectedCategory));
+                        },
                         child: AnimatedContainer(
                           duration: const Duration(milliseconds: 150),
                           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 7),
@@ -139,28 +152,76 @@ class _JobListScreenState extends State<JobListScreen> {
             ),
           ),
 
-          SliverPadding(
-            padding: const EdgeInsets.all(KaziSpacing.md),
-            sliver: SliverList(
-              delegate: SliverChildBuilderDelegate(
-                (context, index) => Padding(
-                  padding: const EdgeInsets.only(bottom: KaziSpacing.md),
-                  child: JobCard(
-                    jobId: 'job_$index',
-                    title: index % 2 == 0 ? 'House Cleaning – 3 Bedroom' : 'Plumbing – Fix Kitchen Sink',
-                    category: index % 2 == 0 ? 'manual' : 'professional',
-                    budget: index % 2 == 0 ? 2500 : 1800,
-                    locationAddress: index % 2 == 0 ? 'Kilimani, Nairobi' : 'Westlands, Nairobi',
-                    durationDisplay: index % 2 == 0 ? '4 hours' : '2 hours',
-                    employerName: index % 2 == 0 ? 'John M.' : 'Amina W.',
-                    distanceKm: 1.2 + index * 0.8,
-                    isVerifiedEmployer: index % 2 == 0,
-                    postedAgo: '${index + 1}m ago',
+          BlocBuilder<JobsBloc, JobsState>(
+            builder: (context, state) {
+              if (state is JobsLoadingState) {
+                return const SliverToBoxAdapter(
+                  child: Center(child: CircularProgressIndicator()),
+                );
+              } else if (state is JobsErrorState) {
+                return SliverToBoxAdapter(
+                  child: Center(
+                    child: Text(
+                      state.message,
+                      style: KaziText.body.copyWith(color: KaziTheme.error),
+                    ),
                   ),
-                ),
-                childCount: 6,
-              ),
-            ),
+                );
+              } else if (state is JobsLoadedState || state is JobsRefreshingState) {
+                final jobs = state is JobsLoadedState ? state.jobs : (state as JobsRefreshingState).currentJobs;
+                
+                if (jobs.isEmpty) {
+                  return SliverToBoxAdapter(
+                    child: Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.work_outline, size: 48, color: KaziTheme.textHint),
+                          const SizedBox(height: 16),
+                          Text(
+                            'No jobs found',
+                            style: KaziText.h3.copyWith(color: KaziTheme.textSecondary),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            'Try adjusting your search or check back later',
+                            style: KaziText.body.copyWith(color: KaziTheme.textHint),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                }
+
+                return SliverList(
+                  delegate: SliverChildBuilderDelegate(
+                    (context, index) {
+                      final job = jobs[index];
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: KaziSpacing.md),
+                        child: JobCard(
+                          jobId: job.id,
+                          title: job.title,
+                          category: job.category,
+                          budget: job.budget?.toDouble() ?? 0.0,
+                          locationAddress: job.locationAddress,
+                          durationDisplay: '${job.durationValue} ${job.durationUnit}',
+                          employerName: job.employerName,
+                          distanceKm: job.distanceKm?.toDouble() ?? 0.0,
+                          isVerifiedEmployer: job.isVerifiedEmployer,
+                          postedAgo: job.postedAgo,
+                        ),
+                      );
+                    },
+                    childCount: jobs.length,
+                  ),
+                );
+              } else {
+                return const SliverToBoxAdapter(
+                  child: Center(child: CircularProgressIndicator()),
+                );
+              }
+            },
           ),
         ],
       ),

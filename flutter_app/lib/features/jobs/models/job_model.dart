@@ -85,6 +85,13 @@ class JobModel {
   bool get isAssigned => status == 'assigned';
   bool get isInProgress => status == 'in_progress';
   bool get isCompleted => status == 'completed';
+
+  // Note: isVerifiedEmployer and postedAgo are not available from the API
+  // These would need to be included in the backend API response or calculated
+  // For now, returning default values - these should be implemented properly
+  // when the backend provides the necessary data
+  bool get isVerifiedEmployer => false; // TODO: Implement proper verification check
+  String get postedAgo => ''; // TODO: Implement proper time ago calculation
 }
 
 class JobApplicationModel {
