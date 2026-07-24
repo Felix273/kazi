@@ -183,7 +183,7 @@ class AnalyticsService {
   /// Log custom event
   static Future<void> logCustomEvent({
     required String name,
-    Map<String, dynamic>? parameters,
+    Map<String, Object>? parameters,
   }) async {
     await _analytics.logEvent(name: name, parameters: parameters);
   }
