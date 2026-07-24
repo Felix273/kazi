@@ -1,0 +1,85 @@
+name: kazi
+description: "A hyperlocal job marketplace for Nairobi, Kenya."
+publish_to: 'none'
+
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.10.8
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+
+  # Firebase
+  firebase_core: ^2.32.0
+  firebase_auth: ^4.16.0
+  cloud_firestore: ^4.17.5
+  firebase_storage: ^11.6.5
+  firebase_messaging: ^14.7.10
+  cloud_functions: ^4.7.6
+  firebase_crashlytics: ^3.4.0
+  firebase_analytics: ^10.5.0
+
+  # Maps & Location
+  google_maps_flutter: ^2.7.0
+  geolocator: ^11.0.0
+  geocoding: ^3.0.0
+
+  # State Management
+  flutter_riverpod: ^2.6.0
+
+  # UI
+  flutter_svg: ^2.0.0
+  shimmer: ^3.0.0
+
+  # Navigation
+  go_router: ^14.0.0
+
+  # Utils
+  intl: ^0.20.0
+  image_picker: ^1.0.0
+  shared_preferences: ^2.3.0
+  url_launcher: ^6.2.2
+  cupertino_icons: ^1.0.9
+  google_fonts: ^8.2.0
+
+  # Onboarding Tutorials
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+
+  flutter_lints: ^6.0.0
+  flutter_launcher_icons: ^0.13.1
+  flutter_native_splash: ^2.3.0
+
+flutter:
+  uses-material-design: true
+
+  assets:
+    - assets/images/
+
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: "assets/images/kazi_brand.png"
+  adaptive_icon_background: "#084C3B"
+  adaptive_icon_foreground: "assets/images/kazi_brand.png"
+  remove_alpha_ios: true
+
+flutter_native_splash:
+  color: "#084C3B"
+  color_dark: "#031E15"
+  image: assets/images/kazi_brand.png
+  android: true
+  ios: true
+  fullscreen: true
+  android_12:
+    color: "#084C3B"
+    color_dark: "#031E15"
+    image: assets/images/kazi_native_splash.png
+    image_dark: assets/images/kazi_native_splash.png
+    icon_background_color: "#084C3B"
+    icon_background_color_dark: "#031E15"

@@ -1,308 +1,177 @@
-# Kazi — On-Demand Jobs Marketplace
+# Kazi
 
-> Connect workers and employers in real-time. Built for Africa, starting in Nairobi.
+Kazi is a Flutter and Firebase marketplace that connects nearby employers with job seekers. Employers can publish jobs, review applicants, hire through M-Pesa escrow, monitor work check-in/check-out, chat, and rate workers. Job seekers can discover nearby work, apply, manage active jobs, receive payment into a wallet, request M-Pesa withdrawals, chat, submit disputes, and complete identity verification.
 
----
+## Implemented application flow
 
-## Project Structure
+### Authentication and profiles
 
-```
-kazi/
-├── backend/          # Django REST API + WebSockets
-│   ├── kazi_backend/ # Project settings, URLs, ASGI config
-│   └── apps/
-│       ├── users/        # Auth (OTP), profiles, skills, KYC
-│       ├── jobs/         # Job posting, matching, applications, reviews
-│       ├── chat/         # WebSocket real-time messaging
-│       ├── payments/     # M-Pesa escrow via IntaSend
-│       └── notifications/ # Push + WebSocket notifications
-└── flutter_app/      # Flutter Android app
-    └── lib/
-        ├── core/          # Theme, router, API client, storage
-        └── features/
-            ├── auth/      # OTP login, registration
-            ├── jobs/      # Job list, detail, post, applications
-            ├── chat/      # Real-time chat
-            ├── profile/   # Profile, edit, KYC
-            └── notifications/
-```
+- Email/password registration and login
+- Firebase phone authentication with OTP
+- Role-specific onboarding for employers and job seekers
+- Firebase Auth-backed session restoration
+- Profile editing, profile image upload, skills, location, availability, and notification preferences
+- Private identity-verification submission with a pending-review state
 
----
+### Job marketplace
 
-## Prerequisites
+- Employer job publishing with salary, fees, requirements, dates, urgency, and map location
+- Nearby-job discovery using the job seeker's current location and saved search radius
+- Category and distance filtering
+- Transaction-safe applications with deterministic IDs to prevent duplicates
+- Employer applicant review, decline, chat, and hire actions
+- Stable one-chat-per-job-and-worker conversations
 
-### Backend
-- Python 3.11+
-- PostgreSQL 14+ with PostGIS extension
-- Redis 6+
-- GDAL (for GeoDjango location queries)
+### Work and payments
 
-### Flutter
-- Flutter 3.16+
-- Android Studio (for emulator) or physical Android device
-- Java 17
+- M-Pesa STK Push hiring/escrow flow through Cloud Functions
+- Mock payment mode for local development
+- GPS-validated work check-in and check-out
+- Server-authoritative completion and worker-wallet credit
+- M-Pesa B2C withdrawal requests and callback handling
+- Job boosts with Basic, Standard, and Premium tiers
+- Idempotent callback processing to reduce duplicate credits or repeated hiring
 
----
+### Trust and communication
 
-## Backend Setup
+- Foreground and background push notifications
+- User-controlled notification preferences
+- New-job proximity notifications
+- Chat-message notifications
+- Post-job ratings with server-maintained averages
+- Dispute creation, evidence upload, admin alerts, and server-side dispute resolution
 
-### 1. Install System Dependencies
+## Project structure
 
-**macOS:**
-```bash
-brew install postgresql postgis redis gdal
-```
-
-**Ubuntu / Debian:**
-```bash
-sudo apt-get install postgresql postgresql-contrib postgis redis-server \
-  gdal-bin libgdal-dev libgeos-dev libproj-dev
+```text
+lib/
+  models/       Firestore data models
+  providers/    Riverpod language and theme state
+  screens/      Authentication, employer, job-seeker, and shared UI
+  services/     Firebase, jobs, payments, chat, profile, ratings, and location
+  constants/    App-wide constants
+functions/      Firebase Cloud Functions and M-Pesa integration
+firestore.rules
+firestore.indexes.json
+storage.rules
+firebase.json
 ```
 
-### 2. Create Database
+## Requirements
 
-```bash
-# Start PostgreSQL
-brew services start postgresql  # macOS
-sudo service postgresql start   # Ubuntu
+- Flutter with Dart 3.10.8 or later
+- Android SDK and Java 17
+- Node.js 20 for Firebase Functions
+- Firebase CLI
+- A Firebase project with Authentication, Firestore, Storage, Functions, Messaging, Analytics, and Crashlytics enabled
+- A Google Maps API key for Android
+- Safaricom Daraja credentials for real M-Pesa payments
 
-# Create DB and enable PostGIS
-psql -U postgres
-CREATE DATABASE kazi_db;
-\c kazi_db
-CREATE EXTENSION postgis;
-\q
-```
+## Run the Flutter app
 
-### 3. Set Up Python Environment
+The project root is the directory that directly contains `pubspec.yaml`, `lib/`, `android/`, and `test/`. Before running Flutter commands, verify it with:
 
 ```bash
-cd backend
-python -m venv venv
-source venv/bin/activate  # Windows: venv\Scripts\activate
-pip install -r requirements.txt
+pwd
+test -f pubspec.yaml && echo "Correct Kazi project root"
 ```
 
-### 4. Configure Environment
+Do not run Flutter commands from the parent extraction directory. Flutter may walk upward and use an unrelated `pubspec.yaml`, causing hundreds of false missing-package errors.
+
+From the verified project root:
 
 ```bash
-cp .env.example .env
-# Open .env and fill in your values
-# At minimum: SECRET_KEY, DB_PASSWORD
-# Everything else can stay as default for local development
-```
-
-### 5. Run Migrations
-
-```bash
-python manage.py migrate
-```
-
-This will:
-- Create all database tables
-- Seed 34 skill categories automatically
-
-### 6. Create Superuser (for Django Admin)
-
-```bash
-python manage.py createsuperuser
-# It will ask for phone number (use +254XXXXXXXXX format) and password
-```
-
-### 7. Start Redis
-
-```bash
-redis-server  # macOS/Linux
-# Windows: use Redis for Windows or WSL
-```
-
-### 8. Start the Backend
-
-```bash
-# Development (auto-reload)
-python manage.py runserver
-
-# The API is now at: http://localhost:8000/api/v1/
-# Django Admin: http://localhost:8000/admin/
-```
-
----
-
-## Flutter App Setup
-
-### 1. Install Dependencies
-
-```bash
-cd flutter_app
 flutter pub get
 ```
 
-### 2. Firebase Setup (for Push Notifications)
-
-1. Go to https://console.firebase.google.com
-2. Create a new project called "Kazi"
-3. Add an Android app with package name: `com.kazi.app`
-4. Download `google-services.json`
-5. Place it at: `flutter_app/android/app/google-services.json`
-
-### 3. Configure API URL
-
-The app points to `http://10.0.2.2:8000` by default.
-`10.0.2.2` is Android emulator's alias for your Mac/PC localhost.
-
-For a physical device on the same WiFi:
-- Find your machine's local IP: `ifconfig | grep inet` (macOS) or `ip addr` (Linux)
-- Edit `lib/core/services/api_client.dart`: change `defaultValue` to `http://YOUR_IP:8000/api/v1`
-
-### 4. Run on Emulator or Device
+Create the local Android configuration if it is missing:
 
 ```bash
-# List available devices
-flutter devices
-
-# Run on Android emulator
-flutter run
-
-# Run on specific device
-flutter run -d <device-id>
+cp android/local.properties.example android/local.properties
 ```
 
----
+Then update the Flutter SDK, Android SDK, and Maps values in `android/local.properties`:
 
-## External Services Setup
+```properties
+sdk.dir=/home/your-user/Android/Sdk
+flutter.sdk=/home/your-user/flutter
+MAPS_API_KEY=YOUR_ANDROID_MAPS_API_KEY
+```
 
-### Africa's Talking (SMS for OTP)
-1. Sign up at https://africastalking.com
-2. In sandbox mode, OTP codes will appear in the **debug_code** field of the API response — no real SMS needed for testing
-3. For production: add your number to the sandbox testers list, then upgrade to live
-
-### IntaSend (M-Pesa Payments)
-1. Sign up at https://intasend.com
-2. You need a registered Kenyan business (even a sole proprietorship works)
-3. Sandbox mode available immediately — no real money moves
-4. STK push test: use the sandbox M-Pesa test credentials from the IntaSend dashboard
-5. For webhooks during development: use [ngrok](https://ngrok.com) to expose your local server
+Run the app. The support WhatsApp number is supplied as digits without `+`:
 
 ```bash
-# Install ngrok, then:
-ngrok http 8000
-# Copy the https URL to BACKEND_URL in your .env
+flutter run --dart-define=SUPPORT_WHATSAPP=2547XXXXXXXX
 ```
 
-### Smile Identity (ID Verification)
-1. Sign up at https://smileidentity.com
-2. Sandbox access is free and immediate
-3. Test with: ID type `NATIONAL_ID`, country `KE`, any 8-digit number
+The Android Firebase configuration is registered for package `com.kazi.app`. Configure every additional platform before running it there. For iOS, for example, add the correct `GoogleService-Info.plist` or run your normal FlutterFire configuration workflow.
 
----
+## Configure Firebase Functions
 
-## API Reference (Key Endpoints)
+Install backend dependencies:
 
-```
-POST /api/v1/auth/request-otp/          Send OTP to phone
-POST /api/v1/auth/verify-otp/           Verify OTP, get JWT tokens
-POST /api/v1/auth/complete-registration/ First-time profile setup
-POST /api/v1/auth/refresh/              Refresh JWT token
-
-GET  /api/v1/users/me/                  Get my profile
-POST /api/v1/users/location/            Update GPS location
-POST /api/v1/users/online-status/       Toggle worker availability
-GET  /api/v1/users/skills/             List all skill categories
-
-GET  /api/v1/jobs/                      List open jobs (with filters)
-POST /api/v1/jobs/create/               Post a new job
-GET  /api/v1/jobs/:id/                  Job detail
-POST /api/v1/jobs/:id/apply/            Worker applies for job
-GET  /api/v1/jobs/:id/applications/     Employer sees applications
-POST /api/v1/jobs/:id/applications/:id/accept/  Hire a worker
-POST /api/v1/jobs/:id/complete/         Mark job complete + release payment
-POST /api/v1/jobs/:id/review/           Submit rating
-
-POST /api/v1/payments/initiate/         Trigger M-Pesa STK push
-POST /api/v1/payments/webhook/intasend/ IntaSend payment webhook (public)
-
-GET  /api/v1/chat/:job_id/              Get chat room for a job
-GET  /api/v1/chat/:room_id/messages/    Load message history
-
-WebSocket: ws://server/ws/chat/:room_id/?token=<jwt>
-WebSocket: ws://server/ws/notifications/?token=<jwt>
-```
-
----
-
-## Development Workflow
-
-### Testing OTP Without Real SMS
-In DEBUG mode, the `/auth/request-otp/` response includes `debug_code`.
-Use this code directly in `/auth/verify-otp/`. No SMS credit needed.
-
-### Testing Payments Without Real M-Pesa
-1. Set `INTASEND_TEST_MODE=True` in `.env`
-2. Use IntaSend sandbox credentials
-3. STK push goes to test M-Pesa, not real money
-4. Simulate webhook: POST to `/api/v1/payments/webhook/intasend/` with test payload
-
-### Running Tests
 ```bash
-# Backend
-python manage.py test
+npm --prefix functions install
+```
 
-# Flutter
+For local development, copy the environment template to the environment file used by your Firebase project:
+
+```bash
+cp functions/.env.example functions/.env.kazi-e81ea
+```
+
+`MPESA_MOCK=true` completes supported payment flows without contacting Daraja. It must be disabled before production deployment.
+
+For real payments, populate all required variables in the environment file:
+
+- `MPESA_CONSUMER_KEY`
+- `MPESA_CONSUMER_SECRET`
+- `MPESA_SHORTCODE`
+- `MPESA_PASSKEY`
+- `MPESA_CALLBACK_URL`
+- `MPESA_B2C_SHORTCODE`
+- `MPESA_B2C_INITIATOR`
+- `MPESA_B2C_SECURITY_CREDENTIAL`
+- `MPESA_B2C_RESULT_URL`
+- `MPESA_B2C_TIMEOUT_URL`
+
+The callback URLs must be publicly reachable HTTPS endpoints for the deployed Cloud Functions in region `africa-south1`.
+
+## Deploy Firebase resources
+
+Select the correct Firebase project, then deploy the rules, indexes, Storage rules, and Functions:
+
+```bash
+firebase use kazi-e81ea
+firebase deploy --only firestore:rules,firestore:indexes,storage,functions
+```
+
+For local backend development:
+
+```bash
+firebase emulators:start --only firestore,functions
+```
+
+## Validation commands
+
+Run these on a machine with Flutter installed:
+
+```bash
+flutter analyze
 flutter test
+flutter build apk --debug
+npm --prefix functions run lint
 ```
 
----
+## Production checklist
 
-## Deployment (Railway)
+Before release:
 
-1. Push backend to GitHub
-2. Create new Railway project → "Deploy from GitHub repo"
-3. Add PostgreSQL plugin (enable PostGIS: `CREATE EXTENSION postgis;` in DB console)
-4. Add Redis plugin
-5. Set all environment variables from `.env.example`
-6. Set start command: `gunicorn kazi_backend.asgi:application -k uvicorn.workers.UvicornWorker --bind 0.0.0.0:$PORT`
-7. Update `BACKEND_URL` in `.env` to your Railway URL
-8. Update `ALLOWED_HOSTS` to include your Railway domain
-
----
-
-## Sprint Roadmap
-
-| Sprint | Status | What's Built |
-|--------|--------|-------------|
-| 1 | ✅ Done | Auth (OTP), user profiles, onboarding |
-| 2 | ✅ Done | Job posting, categories, skills |
-| 3 | ✅ Done | Location matching (PostGIS), job feed |
-| 4 | ✅ Done | Real-time notifications (WebSocket + FCM) |
-| 5 | ✅ Done | In-app chat (WebSocket) |
-| 6 | ✅ Done | M-Pesa escrow (IntaSend) |
-| 7 | 🔜 Next | Smile Identity KYC, ratings/reviews wire-up |
-| 8 | 🔜 Next | Polish, edge cases, beta testing |
-
----
-
-## What's TODO Before Launch
-
-- [ ] Wire all Flutter BLoC events to real API calls (currently some screens use mock data)
-- [ ] Implement Smile Identity KYC flow end-to-end
-- [ ] Add `manage.py` migration for `0001_initial` (auto-generated by Django once models are stable)
-- [ ] Set up ngrok + test full IntaSend payment flow
-- [ ] Register business at bizregistry.go.ke
-- [ ] Upload app to Google Play internal testing track
-- [ ] Run with 5–10 beta users in Nairobi
-
----
-
-## Built With
-
-| Layer | Technology |
-|-------|-----------|
-| Mobile | Flutter (Dart) |
-| Backend | Django + Django REST Framework |
-| Database | PostgreSQL + PostGIS (GeoDjango) |
-| Real-time | Django Channels + Redis |
-| Payments | IntaSend (M-Pesa) |
-| SMS | Africa's Talking |
-| KYC | Smile Identity |
-| Push | Firebase Cloud Messaging |
-| Hosting | Railway (backend) + Supabase (DB) |
+1. Replace mock M-Pesa mode with valid Daraja credentials and verified callback URLs.
+2. Add a restricted Google Maps API key.
+3. Configure Firebase for every target platform.
+4. Create a production Android signing key; the current release build still uses debug signing.
+5. Set the support WhatsApp number through `--dart-define` or your release build configuration.
+6. Assign the Firebase custom claim `admin: true` only to trusted administrators responsible for disputes and identity reviews.
+7. Test Firestore and Storage rules in the Firebase Emulator Suite.
+8. Run end-to-end tests for duplicate callbacks, failed STK requests, failed B2C payouts, offline operation, denied location permission, and notification delivery.

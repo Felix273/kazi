@@ -1,0 +1,367 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isSelf(userId) {
+      return signedIn() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return signedIn() && request.auth.token.admin == true;
+    }
+
+    function currentUser() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    function isEmployer() {
+      return signedIn() && currentUser().role == 'employer';
+    }
+
+    function isJobseeker() {
+      return signedIn() && currentUser().role == 'jobseeker';
+    }
+
+    function job(jobId) {
+      return get(/databases/$(database)/documents/jobs/$(jobId)).data;
+    }
+
+    function isJobParticipant(jobData) {
+      return signedIn() && (
+        jobData.employerId == request.auth.uid ||
+        jobData.hiredWorkerId == request.auth.uid
+      );
+    }
+
+    function isChatParticipant(chatData) {
+      return signedIn() && (
+        chatData.employerId == request.auth.uid ||
+        chatData.workerId == request.auth.uid
+      );
+    }
+
+    match /users/{userId} {
+      allow read: if signedIn();
+
+      allow create: if isSelf(userId)
+        && request.resource.data.role in ['employer', 'jobseeker']
+        && request.resource.data.name is string
+        && request.resource.data.name.size() >= 2
+        && request.resource.data.name.size() <= 100
+        && request.resource.data.phone is string
+        && request.resource.data.verificationStatus == 'not_submitted'
+        && request.resource.data.isVerified == false
+        && request.resource.data.averageRating == 0
+        && request.resource.data.totalJobsCompleted == 0
+        && request.resource.data.createdAt is timestamp;
+
+      allow update: if isSelf(userId)
+        && request.resource.data.role == resource.data.role
+        && (
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'name',
+            'phone',
+            'email',
+            'photoUrl',
+            'neighborhood',
+            'lat',
+            'lng',
+            'skills',
+            'bio',
+            'isAvailable',
+            'fcmToken',
+            'fcmTokenUpdatedAt',
+            'notificationSettings',
+            'updatedAt'
+          ]) || (
+            request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+              'verificationStatus',
+              'updatedAt'
+            ])
+            && request.resource.data.verificationStatus == 'pending'
+            && (
+              !('verificationStatus' in resource.data) ||
+              resource.data.verificationStatus in ['not_submitted', 'rejected']
+            )
+          )
+        );
+
+      allow delete: if isSelf(userId);
+    }
+
+    match /identityVerifications/{userId} {
+      allow read: if isSelf(userId) || isAdmin();
+
+      allow create: if isSelf(userId)
+        && request.resource.data.userId == request.auth.uid
+        && request.resource.data.status == 'pending'
+        && request.resource.data.idNumber is string
+        && request.resource.data.idNumber.size() >= 6
+        && request.resource.data.idPhotoUrl is string;
+
+      allow update: if isSelf(userId)
+        && resource.data.status == 'rejected'
+        && request.resource.data.userId == request.auth.uid
+        && request.resource.data.status == 'pending'
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'idNumber',
+          'idPhotoUrl',
+          'status',
+          'submittedAt',
+          'updatedAt'
+        ]);
+
+      allow delete: if false;
+    }
+
+    match /jobs/{jobId} {
+      allow read: if signedIn() && (
+        resource.data.status == 'open' ||
+        resource.data.employerId == request.auth.uid ||
+        resource.data.hiredWorkerId == request.auth.uid
+      );
+
+      allow create: if isEmployer()
+        && request.resource.data.keys().hasOnly([
+          'title',
+          'category',
+          'description',
+          'requirements',
+          'salaryKES',
+          'employerPaysKES',
+          'workerEarnsKES',
+          'platformFeeKES',
+          'duration',
+          'durationType',
+          'startDate',
+          'isUrgent',
+          'location',
+          'neighborhood',
+          'geohash',
+          'employerId',
+          'employerName',
+          'employerPhone',
+          'status',
+          'paymentStatus',
+          'applicantCount',
+          'createdAt',
+          'updatedAt'
+        ])
+        && request.resource.data.employerId == request.auth.uid
+        && request.resource.data.status == 'open'
+        && request.resource.data.paymentStatus == 'not_started'
+        && request.resource.data.applicantCount == 0
+        && request.resource.data.title is string
+        && request.resource.data.title.size() >= 3
+        && request.resource.data.description is string
+        && request.resource.data.salaryKES is number
+        && request.resource.data.salaryKES > 0
+        && request.resource.data.employerPaysKES is number
+        && request.resource.data.workerEarnsKES is number
+        && request.resource.data.platformFeeKES is number
+        && request.resource.data.location is latlng
+        && request.resource.data.startDate is timestamp
+        && request.resource.data.createdAt is timestamp
+        && request.resource.data.updatedAt is timestamp;
+
+      allow update: if signedIn() && (
+        employerEditsOpenJob() ||
+        employerCancelsOpenJob() ||
+        jobseekerIncrementsApplicantCount(jobId)
+      );
+
+      allow delete: if false;
+
+      function employerEditsOpenJob() {
+        return resource.data.employerId == request.auth.uid
+          && resource.data.status == 'open'
+          && request.resource.data.status == 'open'
+          && request.resource.data.employerId == resource.data.employerId
+          && request.resource.data.paymentStatus == resource.data.paymentStatus
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'title',
+            'category',
+            'description',
+            'requirements',
+            'salaryKES',
+            'employerPaysKES',
+            'workerEarnsKES',
+            'platformFeeKES',
+            'duration',
+            'durationType',
+            'startDate',
+            'isUrgent',
+            'location',
+            'neighborhood',
+            'geohash',
+            'employerPhone',
+            'updatedAt'
+          ]);
+      }
+
+      function employerCancelsOpenJob() {
+        return resource.data.employerId == request.auth.uid
+          && resource.data.status == 'open'
+          && request.resource.data.status == 'cancelled'
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'status',
+            'updatedAt'
+          ]);
+      }
+
+      function jobseekerIncrementsApplicantCount(currentJobId) {
+        let applicationId = currentJobId + '_' + request.auth.uid;
+        let applicationPath = /databases/$(database)/documents/applications/$(applicationId);
+        return isJobseeker()
+          && resource.data.status == 'open'
+          && request.resource.data.status == resource.data.status
+          && request.resource.data.applicantCount == resource.data.applicantCount + 1
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'applicantCount',
+            'updatedAt'
+          ])
+          && !exists(applicationPath)
+          && existsAfter(applicationPath);
+      }
+    }
+
+    match /applications/{applicationId} {
+      allow create: if isJobseeker()
+        && request.resource.data.workerId == request.auth.uid
+        && applicationId == request.resource.data.jobId + '_' + request.auth.uid
+        && request.resource.data.status == 'pending'
+        && job(request.resource.data.jobId).status == 'open'
+        && job(request.resource.data.jobId).employerId != request.auth.uid
+        && request.resource.data.employerId == job(request.resource.data.jobId).employerId;
+
+      allow read: if signedIn() && (
+        resource.data.workerId == request.auth.uid ||
+        resource.data.employerId == request.auth.uid
+      );
+
+      allow update: if signedIn()
+        && resource.data.employerId == request.auth.uid
+        && resource.data.status == 'pending'
+        && request.resource.data.status == 'declined'
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'status',
+          'declinedAt'
+        ]);
+
+      allow delete: if false;
+    }
+
+    match /transactions/{transactionId} {
+      allow read: if signedIn() && resource.data.userId == request.auth.uid;
+      allow write: if false;
+    }
+
+    match /wallets/{walletId} {
+      allow read: if isSelf(walletId);
+      allow write: if false;
+    }
+
+    match /ratings/{ratingId} {
+      allow read: if signedIn();
+
+      allow create: if signedIn()
+        && request.resource.data.reviewerId == request.auth.uid
+        && ratingId == request.resource.data.jobId + '_' + request.auth.uid
+        && request.resource.data.stars is int
+        && request.resource.data.stars >= 1
+        && request.resource.data.stars <= 5
+        && job(request.resource.data.jobId).status == 'completed'
+        && (
+          (
+            job(request.resource.data.jobId).employerId == request.auth.uid
+            && job(request.resource.data.jobId).hiredWorkerId == request.resource.data.revieweeId
+            && request.resource.data.type == 'employer_to_worker'
+          ) ||
+          (
+            job(request.resource.data.jobId).hiredWorkerId == request.auth.uid
+            && job(request.resource.data.jobId).employerId == request.resource.data.revieweeId
+            && request.resource.data.type == 'worker_to_employer'
+          )
+        );
+
+      allow update, delete: if false;
+    }
+
+    match /disputes/{disputeId} {
+      allow read: if signedIn() && (
+        resource.data.reporterId == request.auth.uid ||
+        resource.data.reportedId == request.auth.uid
+      );
+      allow write: if false;
+    }
+
+    match /chats/{chatId} {
+      allow read: if isChatParticipant(resource.data);
+
+      allow create: if signedIn()
+        && isChatParticipant(request.resource.data)
+        && request.resource.data.participantIds.hasAll([
+          request.resource.data.employerId,
+          request.resource.data.workerId
+        ])
+        && job(request.resource.data.jobId).status in ['hired', 'completed']
+        && job(request.resource.data.jobId).employerId == request.resource.data.employerId
+        && job(request.resource.data.jobId).hiredWorkerId == request.resource.data.workerId;
+
+      allow update: if isChatParticipant(resource.data)
+        && request.resource.data.employerId == resource.data.employerId
+        && request.resource.data.workerId == resource.data.workerId
+        && request.resource.data.jobId == resource.data.jobId
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'lastMessage',
+          'lastMessageAt',
+          'lastMessageSenderId',
+          'updatedAt'
+        ]);
+
+      allow delete: if false;
+
+      match /messages/{messageId} {
+        allow read: if isChatParticipant(
+          get(/databases/$(database)/documents/chats/$(chatId)).data
+        );
+
+        allow create: if isChatParticipant(
+            get(/databases/$(database)/documents/chats/$(chatId)).data
+          )
+          && request.resource.data.senderId == request.auth.uid
+          && request.resource.data.chatId == chatId
+          && request.resource.data.text is string
+          && request.resource.data.text.size() <= 2000;
+
+        allow update: if isChatParticipant(
+            get(/databases/$(database)/documents/chats/$(chatId)).data
+          )
+          && request.resource.data.senderId == resource.data.senderId
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read']);
+
+        allow delete: if false;
+      }
+    }
+
+    match /checkins/{checkinId} {
+      allow read: if signedIn() && isJobParticipant(job(resource.data.jobId));
+      allow write: if false;
+    }
+
+    match /notifications/{notificationId} {
+      allow read: if signedIn() && resource.data.userId == request.auth.uid;
+      allow update: if signedIn()
+        && resource.data.userId == request.auth.uid
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read']);
+      allow create, delete: if false;
+    }
+
+    match /adminAlerts/{alertId} {
+      allow read, write: if false;
+    }
+  }
+}
