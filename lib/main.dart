@@ -32,6 +32,7 @@ import 'screens/shared/dispute_screen.dart';
 import 'screens/shared/notification_settings_screen.dart';
 import 'screens/shared/onboarding_screen.dart';
 import 'screens/shared/role_selection_screen.dart';
+import 'screens/admin/admin_dashboard_screen.dart';
 import 'screens/shared/settings_screen.dart';
 import 'screens/shared/splash_screen.dart';
 import 'services/analytics_service.dart';
@@ -227,6 +228,10 @@ final GoRouter appRouter = GoRouter(
     GoRoute(
       path: '/settings/notifications',
       builder: (context, state) => const NotificationSettingsScreen(),
+    ),
+    GoRoute(
+      path: '/admin',
+      builder: (context, state) => const AdminDashboardScreen(),
     ),
     GoRoute(
       path: '/dispute',

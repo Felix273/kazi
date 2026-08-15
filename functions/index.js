@@ -1192,6 +1192,51 @@ exports.notifyChatRecipient = functions
     return null;
   });
 
+exports.reviewUserVerification = callable.onCall(async (data, context) => {
+  requireAuth(context);
+  if (context.auth.token.admin !== true) {
+    throw new functions.https.HttpsError('permission-denied', 'Admin access required.');
+  }
+  const { userId, approved, rejectionReason } = data || {};
+  if (!userId) {
+    throw new functions.https.HttpsError('invalid-argument', 'userId is required.');
+  }
+  const newStatus = approved ? 'verified' : 'rejected';
+  const batch = db.batch();
+
+  const verificationRef = db.collection('identityVerifications').doc(userId);
+  batch.set(
+    verificationRef,
+    {
+      status: newStatus,
+      reviewedBy: context.auth.uid,
+      reviewedAt: admin.firestore.FieldValue.serverTimestamp(),
+      ...(rejectionReason ? { rejectionReason } : {}),
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    },
+    { merge: true },
+  );
+
+  const userRef = db.collection('users').doc(userId);
+  batch.update(userRef, {
+    verificationStatus: newStatus,
+    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+  });
+
+  await batch.commit();
+
+  await sendNotificationToUser(
+    userId,
+    approved ? 'Identity Verified' : 'Identity Verification Update',
+    approved
+      ? 'Your identity verification has been approved! You now have a verified profile.'
+      : `Your identity verification was not approved. ${rejectionReason || 'Please resubmit with valid documents.'}`,
+    { type: 'identity_verification_update', status: newStatus },
+  );
+
+  return { success: true, status: newStatus };
+});
+
 exports.triggerRatingPrompt = functions
   .region(REGION)
   .firestore.document('jobs/{jobId}')
