@@ -135,6 +135,14 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                         context.go('/profile');
                       },
                     ),
+                    _SettingsActionTile(
+                      icon: Icons.admin_panel_settings_outlined,
+                      title: 'Admin dashboard',
+                      subtitle: 'Manage disputes, verifications, and broadcasts',
+                      onTap: () {
+                        context.go('/admin');
+                      },
+                    ),
                   ],
                 ),
               ),
