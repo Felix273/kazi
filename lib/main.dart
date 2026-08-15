@@ -9,6 +9,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import 'firebase_options.dart';
 import 'providers/theme_provider.dart';
 import 'screens/auth/complete_phone_profile_screen.dart';
 import 'screens/auth/login_screen.dart';
@@ -48,7 +49,9 @@ Future<void> main() async {
   ]);
 
   try {
-    await Firebase.initializeApp();
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    );
     FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
 
     FlutterError.onError = FirebaseCrashlytics.instance.recordFlutterFatalError;
