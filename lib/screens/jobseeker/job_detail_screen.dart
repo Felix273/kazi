@@ -64,8 +64,10 @@ class _JobDetailScreenState extends ConsumerState<JobDetailScreen> {
 
         return Scaffold(
           bottomNavigationBar: _JobApplicationBar(
+            jobId: widget.jobId,
             workerEarns: workerEarns,
             isApplying: _isApplying,
+            isClosed: job.status != 'open',
             onApply: () => _showApplyDialog(job),
           ),
           body: CustomScrollView(
@@ -302,13 +304,22 @@ class _JobDetailScreenState extends ConsumerState<JobDetailScreen> {
           backgroundColor: AppTheme.success,
         ),
       );
-    } catch (_) {
+    } catch (error) {
       if (!mounted) return;
 
+      final message = error is StateError
+          ? error.message
+          : error
+              .toString()
+              .replaceFirst('Bad state: ', '')
+              .replaceFirst('Exception: ', '');
+
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
+        SnackBar(
           content: Text(
-            'Your application could not be submitted. Please try again.',
+            message.trim().isNotEmpty
+                ? message
+                : 'Your application could not be submitted. Please try again.',
           ),
         ),
       );
@@ -832,13 +843,17 @@ class _ApplicationInsightCard extends StatelessWidget {
 
 class _JobApplicationBar extends StatelessWidget {
   const _JobApplicationBar({
+    required this.jobId,
     required this.workerEarns,
     required this.isApplying,
+    required this.isClosed,
     required this.onApply,
   });
 
+  final String jobId;
   final double workerEarns;
   final bool isApplying;
+  final bool isClosed;
   final VoidCallback onApply;
 
   @override
@@ -846,59 +861,79 @@ class _JobApplicationBar extends StatelessWidget {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
 
-    return Material(
-      elevation: 8,
-      color: scheme.surface,
-      child: SafeArea(
-        top: false,
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(
-            AppSpacing.lg,
-            AppSpacing.sm,
-            AppSpacing.lg,
-            AppSpacing.sm,
-          ),
-          child: Row(
-            children: [
-              Expanded(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'ESTIMATED PAYOUT',
-                      style: theme.textTheme.labelSmall?.copyWith(
-                        color: scheme.onSurfaceVariant,
-                        fontWeight: FontWeight.w700,
-                        letterSpacing: 0.6,
-                      ),
-                    ),
-                    const SizedBox(height: AppSpacing.xxs),
-                    Text(
-                      'KES ${_formatAmount(workerEarns)}',
-                      style: theme.textTheme.titleMedium?.copyWith(
-                        color: scheme.primary,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ],
-                ),
+    return StreamBuilder<bool>(
+      stream: Stream.fromFuture(ApplicationService.hasApplied(jobId)),
+      builder: (context, snapshot) {
+        final hasApplied = snapshot.data ?? false;
+
+        return Material(
+          elevation: 8,
+          color: scheme.surface,
+          child: SafeArea(
+            top: false,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(
+                AppSpacing.lg,
+                AppSpacing.sm,
+                AppSpacing.lg,
+                AppSpacing.sm,
               ),
-              const SizedBox(width: AppSpacing.md),
-              FilledButton.icon(
-                onPressed: isApplying ? null : onApply,
-                icon: isApplying
-                    ? const SizedBox.square(
-                        dimension: 18,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Icon(Icons.send_rounded),
-                label: Text(isApplying ? 'Applying…' : 'Apply now'),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'ESTIMATED PAYOUT',
+                          style: theme.textTheme.labelSmall?.copyWith(
+                            color: scheme.onSurfaceVariant,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: 0.6,
+                          ),
+                        ),
+                        const SizedBox(height: AppSpacing.xxs),
+                        Text(
+                          'KES ${_formatAmount(workerEarns)}',
+                          style: theme.textTheme.titleMedium?.copyWith(
+                            color: scheme.primary,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: AppSpacing.md),
+                  if (isClosed)
+                    FilledButton.icon(
+                      onPressed: null,
+                      icon: const Icon(Icons.block_rounded),
+                      label: const Text('Job closed'),
+                    )
+                  else if (hasApplied)
+                    FilledButton.icon(
+                      onPressed: null,
+                      icon: const Icon(Icons.check_circle_rounded),
+                      label: const Text('Applied'),
+                    )
+                  else
+                    FilledButton.icon(
+                      onPressed: isApplying ? null : onApply,
+                      icon: isApplying
+                          ? const SizedBox.square(
+                              dimension: 18,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.send_rounded),
+                      label: Text(isApplying ? 'Applying…' : 'Apply now'),
+                    ),
+                ],
               ),
-            ],
+            ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 }
