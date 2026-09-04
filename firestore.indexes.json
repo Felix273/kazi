@@ -46,6 +46,15 @@
       "collectionGroup": "applications",
       "queryScope": "COLLECTION",
       "fields": [
+        { "fieldPath": "jobId", "order": "ASCENDING" },
+        { "fieldPath": "employerId", "order": "ASCENDING" },
+        { "fieldPath": "appliedAt", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "applications",
+      "queryScope": "COLLECTION",
+      "fields": [
         { "fieldPath": "workerId", "order": "ASCENDING" },
         { "fieldPath": "status", "order": "ASCENDING" },
         { "fieldPath": "appliedAt", "order": "DESCENDING" }

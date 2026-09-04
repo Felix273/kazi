@@ -250,10 +250,7 @@ service cloud.firestore {
         && job(request.resource.data.jobId).employerId != request.auth.uid
         && request.resource.data.employerId == job(request.resource.data.jobId).employerId;
 
-      allow list: if signedIn() && (
-        resource.data.workerId == request.auth.uid ||
-        resource.data.employerId == request.auth.uid
-      );
+      allow list: if signedIn();
       allow get: if signedIn() && (
         resource == null ||
         resource.data.workerId == request.auth.uid ||
