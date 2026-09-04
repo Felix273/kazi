@@ -127,6 +127,7 @@ service cloud.firestore {
     match /jobs/{jobId} {
       allow list: if signedIn();
       allow get: if signedIn() && (
+        resource == null ||
         resource.data.status == 'open' ||
         resource.data.employerId == request.auth.uid ||
         resource.data.hiredWorkerId == request.auth.uid
@@ -226,7 +227,8 @@ service cloud.firestore {
       function jobseekerIncrementsApplicantCount(currentJobId) {
         let applicationId = currentJobId + '_' + request.auth.uid;
         let applicationPath = /databases/$(database)/documents/applications/$(applicationId);
-        return isJobseeker()
+        return signedIn()
+          && request.auth.uid != resource.data.employerId
           && resource.data.status == 'open'
           && request.resource.data.status == resource.data.status
           && request.resource.data.applicantCount == resource.data.applicantCount + 1
@@ -240,7 +242,7 @@ service cloud.firestore {
     }
 
     match /applications/{applicationId} {
-      allow create: if isJobseeker()
+      allow create: if signedIn()
         && request.resource.data.workerId == request.auth.uid
         && applicationId == request.resource.data.jobId + '_' + request.auth.uid
         && request.resource.data.status == 'pending'
@@ -248,8 +250,12 @@ service cloud.firestore {
         && job(request.resource.data.jobId).employerId != request.auth.uid
         && request.resource.data.employerId == job(request.resource.data.jobId).employerId;
 
-      allow list: if signedIn();
+      allow list: if signedIn() && (
+        resource.data.workerId == request.auth.uid ||
+        resource.data.employerId == request.auth.uid
+      );
       allow get: if signedIn() && (
+        resource == null ||
         resource.data.workerId == request.auth.uid ||
         resource.data.employerId == request.auth.uid
       );
@@ -267,8 +273,8 @@ service cloud.firestore {
     }
 
     match /transactions/{transactionId} {
-      allow list: if signedIn();
-      allow get: if signedIn() && resource.data.userId == request.auth.uid;
+      allow list: if signedIn() && resource.data.userId == request.auth.uid;
+      allow get: if signedIn() && (resource == null || resource.data.userId == request.auth.uid);
       allow write: if false;
     }
 
@@ -304,8 +310,12 @@ service cloud.firestore {
     }
 
     match /disputes/{disputeId} {
-      allow list: if signedIn();
+      allow list: if signedIn() && (
+        resource.data.reporterId == request.auth.uid ||
+        resource.data.reportedId == request.auth.uid
+      );
       allow get: if signedIn() && (
+        resource == null ||
         resource.data.reporterId == request.auth.uid ||
         resource.data.reportedId == request.auth.uid
       );
@@ -313,8 +323,8 @@ service cloud.firestore {
     }
 
     match /chats/{chatId} {
-      allow list: if signedIn();
-      allow get: if isChatParticipant(resource.data);
+      allow list: if isChatParticipant(resource.data);
+      allow get: if signedIn() && (resource == null || isChatParticipant(resource.data));
 
       allow create: if signedIn()
         && isChatParticipant(request.resource.data)
@@ -363,14 +373,14 @@ service cloud.firestore {
     }
 
     match /checkins/{checkinId} {
-      allow list: if signedIn();
-      allow get: if signedIn() && isJobParticipant(job(resource.data.jobId));
+      allow list: if signedIn() && isJobParticipant(job(resource.data.jobId));
+      allow get: if signedIn() && (resource == null || isJobParticipant(job(resource.data.jobId)));
       allow write: if false;
     }
 
     match /notifications/{notificationId} {
-      allow list: if signedIn();
-      allow get: if signedIn() && resource.data.userId == request.auth.uid;
+      allow list: if signedIn() && resource.data.userId == request.auth.uid;
+      allow get: if signedIn() && (resource == null || resource.data.userId == request.auth.uid);
       allow update: if signedIn()
         && resource.data.userId == request.auth.uid
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read']);
