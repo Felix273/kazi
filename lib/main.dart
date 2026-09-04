@@ -10,10 +10,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import 'providers/theme_provider.dart';
+import 'screens/auth/complete_google_profile_screen.dart';
 import 'screens/auth/complete_phone_profile_screen.dart';
+import 'screens/auth/login_otp_screen.dart';
 import 'screens/auth/login_screen.dart';
 import 'screens/auth/otp_screen.dart';
 import 'screens/auth/phone_login_screen.dart';
+import 'screens/auth/register_otp_screen.dart';
 import 'screens/auth/registration_screen.dart';
 import 'screens/employer/boost_screen.dart';
 import 'screens/employer/employer_dashboard.dart';
@@ -132,6 +135,42 @@ final GoRouter appRouter = GoRouter(
       builder: (context, state) {
         final extra = state.extra as Map<String, dynamic>?;
         return LoginScreen(role: extra?['role'] as String? ?? 'jobseeker');
+      },
+    ),
+    GoRoute(
+      path: '/auth/email-otp',
+      builder: (context, state) {
+        final extra = state.extra as Map<String, dynamic>? ?? const {};
+        return LoginOtpScreen(
+          email: extra['email'] as String? ?? '',
+          password: extra['password'] as String? ?? '',
+          role: extra['role'] as String? ?? 'jobseeker',
+        );
+      },
+    ),
+    GoRoute(
+      path: '/auth/register-otp',
+      builder: (context, state) {
+        final extra = state.extra as Map<String, dynamic>? ?? const {};
+        return RegisterOtpScreen(
+          email: extra['email'] as String? ?? '',
+          password: extra['password'] as String? ?? '',
+          name: extra['name'] as String? ?? '',
+          phone: extra['phone'] as String? ?? '',
+          role: extra['role'] as String? ?? 'jobseeker',
+        );
+      },
+    ),
+    GoRoute(
+      path: '/auth/complete-google-profile',
+      builder: (context, state) {
+        final extra = state.extra as Map<String, dynamic>?;
+        return CompleteGoogleProfileScreen(
+          role: extra?['role'] as String? ?? 'jobseeker',
+          initialName: extra?['name'] as String? ?? '',
+          email: extra?['email'] as String? ?? '',
+          photoUrl: extra?['photoUrl'] as String?,
+        );
       },
     ),
     GoRoute(

@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:go_router/go_router.dart';
 import 'package:shimmer/shimmer.dart';
 
+import '../constants/app_constants.dart';
 import 'app_theme.dart';
 
 /// Reusable presentation components used throughout Kazi.
@@ -47,6 +49,67 @@ abstract final class Widgets {
           selectedIcon: Icon(Icons.person_rounded),
           label: 'Profile',
           tooltip: 'Open your profile',
+        ),
+       ],
+    );
+  }
+
+  /// Material 3 navigation for the employer workspace.
+  ///
+  /// Automatically highlights the tab that corresponds to the current route,
+  /// so each employer screen can call this without passing a hardcoded
+  /// `selectedIndex`.
+  static Widget employerBottomNav(BuildContext context) {
+    String currentPath;
+    try {
+      currentPath = GoRouterState.of(context).uri.toString();
+    } catch (_) {
+      currentPath = '';
+    }
+
+    int currentIndex = 0;
+    if (currentPath.startsWith('/employer/post-job')) {
+      currentIndex = 1;
+    } else if (currentPath == '/chat') {
+      currentIndex = 2;
+    } else if (currentPath == '/profile') {
+      currentIndex = 3;
+    }
+
+    return NavigationBar(
+      selectedIndex: currentIndex,
+      onDestinationSelected: (index) {
+        switch (index) {
+          case 0:
+            context.go('/employer/home');
+          case 1:
+            context.go('/employer/post-job');
+          case 2:
+            context.go('/chat', extra: {'role': AppConstants.roleEmployer});
+          case 3:
+            context.go('/profile', extra: {'role': AppConstants.roleEmployer});
+        }
+      },
+      destinations: const [
+        NavigationDestination(
+          icon: Icon(Icons.dashboard_outlined),
+          selectedIcon: Icon(Icons.dashboard_rounded),
+          label: 'Overview',
+        ),
+        NavigationDestination(
+          icon: Icon(Icons.add_circle_outline_rounded),
+          selectedIcon: Icon(Icons.add_circle_rounded),
+          label: 'Post job',
+        ),
+        NavigationDestination(
+          icon: Icon(Icons.chat_bubble_outline_rounded),
+          selectedIcon: Icon(Icons.chat_bubble_rounded),
+          label: 'Messages',
+        ),
+        NavigationDestination(
+          icon: Icon(Icons.person_outline_rounded),
+          selectedIcon: Icon(Icons.person_rounded),
+          label: 'Account',
         ),
       ],
     );

@@ -59,7 +59,6 @@ service cloud.firestore {
         && request.resource.data.createdAt is timestamp;
 
       allow update: if isSelf(userId)
-        && request.resource.data.role == resource.data.role
         && (
           request.resource.data.diff(resource.data).affectedKeys().hasOnly([
             'name',
@@ -76,7 +75,11 @@ service cloud.firestore {
             'fcmTokenUpdatedAt',
             'notificationSettings',
             'updatedAt'
-          ]) || (
+          ]) ||
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'role',
+            'updatedAt'
+          ]) && request.resource.data.role in ['employer', 'jobseeker'] || (
             request.resource.data.diff(resource.data).affectedKeys().hasOnly([
               'verificationStatus',
               'updatedAt'
@@ -90,6 +93,10 @@ service cloud.firestore {
         );
 
       allow delete: if isSelf(userId);
+    }
+
+    match /emailOtps/{otpId} {
+      allow read, write: if false;
     }
 
     match /identityVerifications/{userId} {
@@ -118,7 +125,8 @@ service cloud.firestore {
     }
 
     match /jobs/{jobId} {
-      allow read: if signedIn() && (
+      allow list: if signedIn();
+      allow get: if signedIn() && (
         resource.data.status == 'open' ||
         resource.data.employerId == request.auth.uid ||
         resource.data.hiredWorkerId == request.auth.uid
@@ -136,6 +144,9 @@ service cloud.firestore {
           'platformFeeKES',
           'duration',
           'durationType',
+          'estimatedHours',
+          'workerCount',
+          'complexity',
           'startDate',
           'isUrgent',
           'location',
@@ -237,7 +248,8 @@ service cloud.firestore {
         && job(request.resource.data.jobId).employerId != request.auth.uid
         && request.resource.data.employerId == job(request.resource.data.jobId).employerId;
 
-      allow read: if signedIn() && (
+      allow list: if signedIn();
+      allow get: if signedIn() && (
         resource.data.workerId == request.auth.uid ||
         resource.data.employerId == request.auth.uid
       );
@@ -255,7 +267,8 @@ service cloud.firestore {
     }
 
     match /transactions/{transactionId} {
-      allow read: if signedIn() && resource.data.userId == request.auth.uid;
+      allow list: if signedIn();
+      allow get: if signedIn() && resource.data.userId == request.auth.uid;
       allow write: if false;
     }
 
@@ -291,7 +304,8 @@ service cloud.firestore {
     }
 
     match /disputes/{disputeId} {
-      allow read: if signedIn() && (
+      allow list: if signedIn();
+      allow get: if signedIn() && (
         resource.data.reporterId == request.auth.uid ||
         resource.data.reportedId == request.auth.uid
       );
@@ -299,7 +313,8 @@ service cloud.firestore {
     }
 
     match /chats/{chatId} {
-      allow read: if isChatParticipant(resource.data);
+      allow list: if signedIn();
+      allow get: if isChatParticipant(resource.data);
 
       allow create: if signedIn()
         && isChatParticipant(request.resource.data)
@@ -348,12 +363,14 @@ service cloud.firestore {
     }
 
     match /checkins/{checkinId} {
-      allow read: if signedIn() && isJobParticipant(job(resource.data.jobId));
+      allow list: if signedIn();
+      allow get: if signedIn() && isJobParticipant(job(resource.data.jobId));
       allow write: if false;
     }
 
     match /notifications/{notificationId} {
-      allow read: if signedIn() && resource.data.userId == request.auth.uid;
+      allow list: if signedIn();
+      allow get: if signedIn() && resource.data.userId == request.auth.uid;
       allow update: if signedIn()
         && resource.data.userId == request.auth.uid
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read']);

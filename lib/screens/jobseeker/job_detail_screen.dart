@@ -289,7 +289,7 @@ class _JobDetailScreenState extends ConsumerState<JobDetailScreen> {
         job.location.longitude,
       );
 
-      await ApplicationService.applyToJob(
+      await ApplicationService.instance.applyToJob(
         jobId: widget.jobId,
         distanceKm: distanceKm,
       );

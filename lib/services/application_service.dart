@@ -4,25 +4,34 @@ import 'package:firebase_auth/firebase_auth.dart';
 import '../models/application_model.dart';
 
 class ApplicationService {
-  static final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-  static final FirebaseAuth _auth = FirebaseAuth.instance;
+  final FirebaseFirestore _firestore;
+  final FirebaseAuth _auth;
+
+  ApplicationService({
+    FirebaseFirestore? firestore,
+    FirebaseAuth? auth,
+  })  : _firestore = firestore ?? FirebaseFirestore.instance,
+        _auth = auth ?? FirebaseAuth.instance;
+
+  static final ApplicationService instance = ApplicationService();
 
   static String applicationId(String jobId, String workerId) {
     return '${jobId}_$workerId';
   }
 
-  static Future<String> applyToJob({
+  Future<String> applyToJob({
     required String jobId,
     double distanceKm = 0,
   }) async {
     final workerId = _auth.currentUser?.uid;
     if (workerId == null) throw StateError('User is not authenticated.');
 
+    await _auth.currentUser?.getIdToken(true);
+
     final jobRef = _firestore.collection('jobs').doc(jobId);
     final userRef = _firestore.collection('users').doc(workerId);
-    final appRef = _firestore
-        .collection('applications')
-        .doc(applicationId(jobId, workerId));
+    final appRef =
+        _firestore.collection('applications').doc(applicationId(jobId, workerId));
 
     await _firestore.runTransaction((transaction) async {
       final jobDoc = await transaction.get(jobRef);
@@ -81,17 +90,15 @@ class ApplicationService {
     return appRef.id;
   }
 
-  static Future<bool> hasApplied(String jobId) async {
+  Future<bool> hasApplied(String jobId) async {
     final workerId = _auth.currentUser?.uid;
     if (workerId == null) return false;
-    final doc = await _firestore
-        .collection('applications')
-        .doc(applicationId(jobId, workerId))
-        .get();
+    final doc =
+        await _firestore.collection('applications').doc(applicationId(jobId, workerId)).get();
     return doc.exists;
   }
 
-  static Stream<List<ApplicationModel>> watchWorkerApplications() {
+  Stream<List<ApplicationModel>> watchWorkerApplications() {
     final workerId = _auth.currentUser?.uid;
     if (workerId == null) return Stream.value(const []);
     return _firestore

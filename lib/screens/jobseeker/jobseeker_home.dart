@@ -289,10 +289,11 @@ class _JobSeekerHomeScreenState extends ConsumerState<JobSeekerHomeScreen> {
             AppSpacing.lg,
             AppSpacing.xl,
           ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
               Text(
                 'Search distance',
                 style: theme.textTheme.headlineSmall?.copyWith(
@@ -359,13 +360,14 @@ class _JobSeekerHomeScreenState extends ConsumerState<JobSeekerHomeScreen> {
                   ),
                 );
               }),
-            ],
-          ),
+              ],
+              ),
+              ),
+            );
+          },
         );
-      },
-    );
+    }
   }
-}
 
 class _DiscoveryHero extends StatelessWidget {
   const _DiscoveryHero({
@@ -421,9 +423,11 @@ class _DiscoveryHero extends StatelessWidget {
                 AppSpacing.lg,
                 AppSpacing.lg,
               ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
+              child: SingleChildScrollView(
+                physics: const NeverScrollableScrollPhysics(),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
                   Row(
                     children: [
                       const Expanded(
@@ -489,7 +493,7 @@ class _DiscoveryHero extends StatelessWidget {
                       ),
                     ],
                   ),
-                  const Spacer(),
+                  const SizedBox(height: AppSpacing.xl),
                   Row(
                     children: [
                       Expanded(
@@ -509,6 +513,7 @@ class _DiscoveryHero extends StatelessWidget {
                   ),
                 ],
               ),
+            ),
             ),
           ),
         ],
@@ -636,6 +641,7 @@ class _JobCardWidget extends StatelessWidget {
     final durationLabel = job.durationType == 'hours'
         ? '${job.duration} hour${job.duration == 1 ? '' : 's'}'
         : '${job.duration} day${job.duration == 1 ? '' : 's'}';
+    final workScopeLabel = '${job.estimatedHours.toStringAsFixed(1)}h · ${job.workerCount} ${job.workerCount == 1 ? 'worker' : 'workers'}';
 
     return Card(
       margin: EdgeInsets.zero,
@@ -737,6 +743,7 @@ class _JobCardWidget extends StatelessWidget {
                     label: '${(job.distanceKm ?? 0).toStringAsFixed(1)} km',
                   ),
                   _MetaPill(icon: Icons.schedule_rounded, label: durationLabel),
+                  _MetaPill(icon: Icons.people_outline, label: workScopeLabel),
                   _MetaPill(
                     icon: Icons.calendar_today_outlined,
                     label: '${job.startDate.day}/${job.startDate.month}',
@@ -825,7 +832,7 @@ class _JobCardWidget extends StatelessWidget {
 
   Future<void> _createApplication(BuildContext context, String jobId) async {
     try {
-      await ApplicationService.applyToJob(jobId: jobId);
+      await ApplicationService.instance.applyToJob(jobId: jobId);
 
       if (!context.mounted) return;
 

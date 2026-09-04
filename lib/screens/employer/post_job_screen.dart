@@ -32,6 +32,9 @@ class _PostJobScreenState extends State<PostJobScreen> {
   String _selectedCategory = 'Cleaning';
   String _durationType = 'hours';
   int _durationValue = 1;
+  double _estimatedHours = 1.0;
+  int _workerCount = 1;
+  String _complexity = 'simple';
 
   DateTime _selectedDate = DateTime.now();
   bool _isUrgent = false;
@@ -248,6 +251,7 @@ class _PostJobScreenState extends State<PostJobScreen> {
         throw StateError('Not authenticated.');
       }
 
+      await user.getIdToken(true);
       final payment = _paymentBreakdown;
       final digits = _employerPhone.replaceAll(RegExp(r'\D'), '');
 
@@ -269,7 +273,6 @@ class _PostJobScreenState extends State<PostJobScreen> {
       await profileReference.set({
         'name': employerName,
         'phone': normalizedPhone,
-        'role': 'employer',
         'neighborhood': _selectedNeighborhood,
         'updatedAt': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
@@ -287,6 +290,9 @@ class _PostJobScreenState extends State<PostJobScreen> {
         'platformFeeKES': payment['kaziFee'],
         'duration': _durationValue,
         'durationType': _durationType,
+        'estimatedHours': _estimatedHours,
+        'workerCount': _workerCount,
+        'complexity': _complexity,
         'startDate': Timestamp.fromDate(_selectedDate),
         'isUrgent': _isUrgent,
         'location': GeoPoint(_selectedLat!, _selectedLng!),
@@ -312,13 +318,13 @@ class _PostJobScreenState extends State<PostJobScreen> {
       if (mounted) {
         context.go('/employer/job/${jobReference.id}');
       }
-    } catch (_) {
+    } catch (error) {
       if (!mounted) return;
 
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
+        SnackBar(
           content: Text(
-            'The job could not be posted. Check your connection and try again.',
+            'The job could not be posted: ${error.toString().replaceFirst('Bad state: ', '')}',
           ),
         ),
       );
@@ -724,6 +730,129 @@ class _PostJobScreenState extends State<PostJobScreen> {
                     const SizedBox(height: AppSpacing.md),
                     _FormSection(
                       number: '04',
+                      icon: Icons.assessment_outlined,
+                      title: 'Work scope',
+                      description:
+                          'Help workers understand the effort required.',
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Estimated work hours',
+                            style: Theme.of(context).textTheme.labelLarge,
+                          ),
+                          const SizedBox(height: AppSpacing.xs),
+                          Row(
+                            children: [
+                              IconButton(
+                                onPressed: () {
+                                  if (_estimatedHours > 0.5) {
+                                    setState(() {
+                                      _estimatedHours -= 0.5;
+                                    });
+                                  }
+                                },
+                                icon: const Icon(Icons.remove_circle_outline),
+                              ),
+                              Expanded(
+                                child: Slider(
+                                  value: _estimatedHours,
+                                  min: 0.5,
+                                  max: 12.0,
+                                  divisions: 23,
+                                  label:
+                                      '${_estimatedHours.toStringAsFixed(1)} hrs',
+                                  onChanged: (value) {
+                                    setState(() {
+                                      _estimatedHours = value;
+                                    });
+                                  },
+                                ),
+                              ),
+                              IconButton(
+                                onPressed: () {
+                                  if (_estimatedHours < 12.0) {
+                                    setState(() {
+                                      _estimatedHours += 0.5;
+                                    });
+                                  }
+                                },
+                                icon: const Icon(Icons.add_circle_outline),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: AppSpacing.md),
+                          Text(
+                            'Workers needed',
+                            style: Theme.of(context).textTheme.labelLarge,
+                          ),
+                          const SizedBox(height: AppSpacing.xs),
+                          Row(
+                            children: [
+                              IconButton(
+                                onPressed: () {
+                                  if (_workerCount > 1) {
+                                    setState(() {
+                                      _workerCount--;
+                                    });
+                                  }
+                                },
+                                icon: const Icon(Icons.remove_circle_outline),
+                              ),
+                              Text(
+                                '$_workerCount ${_workerCount == 1 ? 'worker' : 'workers'}',
+                                style: Theme.of(context).textTheme.titleMedium,
+                              ),
+                              const Spacer(),
+                              IconButton(
+                                onPressed: () {
+                                  if (_workerCount < 10) {
+                                    setState(() {
+                                      _workerCount++;
+                                    });
+                                  }
+                                },
+                                icon: const Icon(Icons.add_circle_outline),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: AppSpacing.md),
+                          Text(
+                            'Complexity',
+                            style: Theme.of(context).textTheme.labelLarge,
+                          ),
+                          const SizedBox(height: AppSpacing.xs),
+                          SegmentedButton<String>(
+                            segments: const [
+                              ButtonSegment(
+                                value: 'simple',
+                                label: Text('Simple'),
+                                icon: Icon(Icons.circle_outlined),
+                              ),
+                              ButtonSegment(
+                                value: 'moderate',
+                                label: Text('Moderate'),
+                                icon: Icon(Icons.circle_outlined),
+                              ),
+                              ButtonSegment(
+                                value: 'complex',
+                                label: Text('Complex'),
+                                icon: Icon(Icons.circle_outlined),
+                              ),
+                            ],
+                            selected: {_complexity},
+                            onSelectionChanged: (selection) {
+                              setState(() {
+                                _complexity = selection.first;
+                              });
+                            },
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: AppSpacing.md),
+                    _FormSection(
+                      number: '05',
                       icon: Icons.event_available_outlined,
                       title: 'Schedule and location',
                       description:
@@ -762,7 +891,7 @@ class _PostJobScreenState extends State<PostJobScreen> {
                     ),
                     const SizedBox(height: AppSpacing.md),
                     _FormSection(
-                      number: '05',
+                      number: '06',
                       icon: Icons.phone_iphone_rounded,
                       title: 'Payment contact',
                       description:

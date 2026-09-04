@@ -1,9 +1,11 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../services/auth_service.dart';
+import '../../services/google_auth_service.dart';
 import '../../services/session_service.dart';
 import '../../utils/app_theme.dart';
 import '../../widgets/auth_shell.dart';
@@ -38,32 +40,19 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   Future<void> _login() async {
     if (!_formKey.currentState!.validate()) return;
 
-    setState(() {
-      _isLoading = true;
-      _errorMessage = null;
-    });
+    final email = _emailController.text.trim();
+    final password = _passwordController.text.trim();
 
-    try {
-      final profile = await AuthService.signIn(
-        email: _emailController.text.trim(),
-        password: _passwordController.text.trim(),
-      );
-
-      if (!mounted) return;
-      context.go(SessionService.homeForRole(profile.role));
-    } on FirebaseAuthException catch (error) {
-      if (!mounted) return;
-      setState(() => _errorMessage = error.message);
-    } catch (_) {
-      if (!mounted) return;
-      setState(() {
-        _errorMessage = 'Something went wrong. Please try again.';
-      });
-    } finally {
-      if (mounted) {
-        setState(() => _isLoading = false);
-      }
-    }
+    if (!mounted) return;
+    context.push(
+      '/auth/email-otp',
+      extra: {
+        'email': email,
+        'password': password,
+        'role': widget.role,
+        'purpose': 'login',
+      },
+    );
   }
 
   void _forgotPassword() {
@@ -71,6 +60,49 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       context: context,
       builder: (_) => const _ForgotPasswordDialog(),
     );
+  }
+
+  Future<void> _handleGoogleSignIn() async {
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+
+    try {
+      final result = await GoogleAuthService.signInWithGoogle(role: widget.role);
+
+      if (!mounted) return;
+
+      if (result == null) {
+        setState(() => _isLoading = false);
+        return;
+      }
+
+      if (result.profile != null) {
+        context.go(SessionService.homeForRole(result.profile!.role));
+      } else {
+        context.push('/auth/complete-google-profile', extra: {
+          'role': widget.role,
+          'name': result.name ?? '',
+          'email': result.email ?? '',
+          'photoUrl': result.photoUrl,
+        });
+      }
+    } on FirebaseAuthException catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _errorMessage = error.message ?? 'Google sign-in failed.';
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _errorMessage = 'Google sign-in failed. Please try again.';
+      });
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
   }
 
   @override
@@ -203,6 +235,19 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
               ),
               const SizedBox(height: AppSpacing.lg),
               const AuthDivider(),
+              const SizedBox(height: AppSpacing.lg),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  onPressed: _isLoading ? null : _handleGoogleSignIn,
+                  icon: SvgPicture.asset(
+                    'assets/images/google_logo.svg',
+                    width: 22,
+                    height: 22,
+                  ),
+                  label: const Text('Continue with Google'),
+                ),
+              ),
               const SizedBox(height: AppSpacing.lg),
               SizedBox(
                 width: double.infinity,

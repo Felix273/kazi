@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart';
 
 import '../models/user_model.dart';
 import 'notification_service.dart';
@@ -33,6 +34,7 @@ class AuthService {
         );
       }
 
+      await user.getIdToken(true);
       await user.updateDisplayName(name);
       final normalizedPhone = _normalizeKenyanPhone(phone);
       final userModel = UserModel(
@@ -61,6 +63,7 @@ class AuthService {
   static Future<UserModel> signIn({
     required String email,
     required String password,
+    String? intendedRole,
   }) async {
     try {
       final credential = await _auth.signInWithEmailAndPassword(
@@ -75,12 +78,21 @@ class AuthService {
         );
       }
 
-      final profile = await getUserProfileOnce(user.uid);
+      await user.getIdToken(true);
+      var profile = await getUserProfileOnce(user.uid);
       if (profile == null) {
         throw FirebaseAuthException(
           code: 'profile-not-found',
           message: 'Your account profile is incomplete. Please register again.',
         );
+      }
+
+      if (intendedRole != null && profile.role != intendedRole) {
+        await _firestore.collection('users').doc(user.uid).update({
+          'role': intendedRole,
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+        profile = profile.copyWith(role: intendedRole);
       }
 
       await SessionService.save(profile.role);
@@ -94,6 +106,18 @@ class AuthService {
         message: 'An unexpected error occurred: $error',
       );
     }
+  }
+
+  static Future<UserModel> signInWithOtp({
+    required String email,
+    required String password,
+    String? intendedRole,
+  }) async {
+    return signIn(
+      email: email,
+      password: password,
+      intendedRole: intendedRole,
+    );
   }
 
   static Future<UserModel?> getUserProfileOnce([String? uid]) async {
@@ -117,6 +141,8 @@ class AuthService {
       );
     }
 
+    await user.getIdToken(true);
+
     final model = UserModel(
       uid: user.uid,
       name: name.trim(),
@@ -131,6 +157,54 @@ class AuthService {
     await SessionService.save(role);
     await NotificationService.syncTokenForCurrentUser();
     return model;
+  }
+
+  static Future<UserModel> completeGoogleProfile({
+    required String name,
+    required String phone,
+    required String role,
+    String? neighborhood,
+    String? photoUrl,
+  }) async {
+    final user = _auth.currentUser;
+    if (user == null) {
+      throw FirebaseAuthException(
+        code: 'no-user',
+        message: 'No authenticated user was found.',
+      );
+    }
+
+    await user.getIdToken(true);
+
+    final model = UserModel(
+      uid: user.uid,
+      name: name.trim(),
+      phone: _normalizeKenyanPhone(phone),
+      role: role,
+      email: user.email,
+      photoUrl: photoUrl ?? user.photoURL,
+      neighborhood: neighborhood,
+      createdAt: DateTime.now(),
+    );
+
+    await user.updateDisplayName(model.name);
+    await _firestore.collection('users').doc(user.uid).set(model.toMap());
+    await SessionService.save(role);
+    await NotificationService.syncTokenForCurrentUser();
+    return model;
+  }
+
+  static Future<void> updateUserRole(String role) async {
+    final user = _auth.currentUser;
+    if (user == null) return;
+    try {
+      await _firestore.collection('users').doc(user.uid).update({
+        'role': role,
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+    } catch (error) {
+      debugPrint('Failed to update user role: $error');
+    }
   }
 
   static Future<void> signOut() async {

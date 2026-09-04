@@ -44,12 +44,15 @@ dependencies:
   url_launcher: ^6.2.2
   cupertino_icons: ^1.0.9
   google_fonts: ^8.2.0
+  google_sign_in: ^6.2.1
 
   # Onboarding Tutorials
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
+  firebase_auth_mocks: ^0.15.2
+  fake_cloud_firestore: ^4.2.0
 
   flutter_lints: ^6.0.0
   flutter_launcher_icons: ^0.13.1
@@ -70,16 +73,16 @@ flutter_launcher_icons:
   remove_alpha_ios: true
 
 flutter_native_splash:
-  color: "#084C3B"
-  color_dark: "#031E15"
+  color: "#1B5E20"
+  color_dark: "#084C3B"
   image: assets/images/kazi_brand.png
   android: true
   ios: true
   fullscreen: true
   android_12:
-    color: "#084C3B"
-    color_dark: "#031E15"
+    color: "#1B5E20"
+    color_dark: "#084C3B"
     image: assets/images/kazi_native_splash.png
     image_dark: assets/images/kazi_native_splash.png
-    icon_background_color: "#084C3B"
-    icon_background_color_dark: "#031E15"
+    icon_background_color: "#1B5E20"
+    icon_background_color_dark: "#084C3B"

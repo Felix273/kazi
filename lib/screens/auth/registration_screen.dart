@@ -1,12 +1,9 @@
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../constants/app_constants.dart';
-import '../../services/auth_service.dart';
-import '../../services/session_service.dart';
 import '../../utils/app_theme.dart';
 import '../../widgets/auth_shell.dart';
 
@@ -82,36 +79,20 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
     FocusManager.instance.primaryFocus?.unfocus();
 
     setState(() {
-      _isLoading = true;
       _errorMessage = null;
     });
 
-    try {
-      final profile = await AuthService.signUp(
-        email: _emailController.text.trim(),
-        password: _passwordController.text.trim(),
-        name: _nameController.text.trim(),
-        phone: _phoneController.text.trim(),
-        role: widget.role,
-      );
-
-      if (!mounted) return;
-
-      context.go(SessionService.homeForRole(profile.role));
-    } on FirebaseAuthException catch (error) {
-      if (!mounted) return;
-      setState(() => _errorMessage = error.message);
-    } catch (_) {
-      if (!mounted) return;
-
-      setState(() {
-        _errorMessage = 'Something went wrong. Please try again.';
-      });
-    } finally {
-      if (mounted) {
-        setState(() => _isLoading = false);
-      }
-    }
+    if (!mounted) return;
+    context.push(
+      '/auth/register-otp',
+      extra: {
+        'email': _emailController.text.trim(),
+        'password': _passwordController.text.trim(),
+        'name': _nameController.text.trim(),
+        'phone': _phoneController.text.trim(),
+        'role': widget.role,
+      },
+    );
   }
 
   @override
