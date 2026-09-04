@@ -1,3 +1,4 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -63,6 +64,9 @@ class _SplashScreenState extends State<SplashScreen>
       return;
     }
 
+    await FirebaseAuth.instance.authStateChanges().first;
+    if (!mounted) return;
+
     if (!AuthService.isLoggedIn) {
       await SessionService.clear();
       if (mounted) context.go('/role');
@@ -103,9 +107,9 @@ class _SplashScreenState extends State<SplashScreen>
         decoration: const BoxDecoration(
           gradient: LinearGradient(
             colors: [
-              Color(0xFF031E15),
-              AppTheme.primaryGreenDark,
-              Color(0xFF0A6B4A),
+              Color(0xFF1B5E20),
+              Color(0xFF1B5E20),
+              Color(0xFF155018),
             ],
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
@@ -192,7 +196,7 @@ class _SplashScreenState extends State<SplashScreen>
                               fit: BoxFit.cover,
                               filterQuality: FilterQuality.high,
                               errorBuilder: (_, _, _) => const ColoredBox(
-                                color: AppTheme.primaryGreenDark,
+                                color: Color(0xFF1B5E20),
                                 child: Icon(
                                   Icons.work_rounded,
                                   size: 104,

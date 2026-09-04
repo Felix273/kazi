@@ -636,43 +636,7 @@ class _MessagesNavigation extends StatelessWidget {
       );
     }
 
-    return NavigationBar(
-      selectedIndex: 2,
-      onDestinationSelected: (index) {
-        switch (index) {
-          case 0:
-            context.go('/employer/home');
-          case 1:
-            context.go('/employer/post-job');
-          case 2:
-            context.go('/chat', extra: {'role': AppConstants.roleEmployer});
-          case 3:
-            context.go('/profile', extra: {'role': AppConstants.roleEmployer});
-        }
-      },
-      destinations: const [
-        NavigationDestination(
-          icon: Icon(Icons.dashboard_outlined),
-          selectedIcon: Icon(Icons.dashboard_rounded),
-          label: 'Overview',
-        ),
-        NavigationDestination(
-          icon: Icon(Icons.add_circle_outline_rounded),
-          selectedIcon: Icon(Icons.add_circle_rounded),
-          label: 'Post job',
-        ),
-        NavigationDestination(
-          icon: Icon(Icons.chat_bubble_outline_rounded),
-          selectedIcon: Icon(Icons.chat_bubble_rounded),
-          label: 'Messages',
-        ),
-        NavigationDestination(
-          icon: Icon(Icons.person_outline_rounded),
-          selectedIcon: Icon(Icons.person_rounded),
-          label: 'Account',
-        ),
-      ],
-    );
+    return Widgets.employerBottomNav(context);
   }
 }
 

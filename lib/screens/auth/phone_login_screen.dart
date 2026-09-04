@@ -126,7 +126,7 @@ class _PhoneLoginScreenState extends ConsumerState<PhoneLoginScreen> {
   }
 
   Future<void> _finishPhoneSignIn() async {
-    final profile = await AuthService.getUserProfileOnce();
+    var profile = await AuthService.getUserProfileOnce();
     if (!mounted) return;
 
     if (profile == null) {
@@ -134,10 +134,20 @@ class _PhoneLoginScreenState extends ConsumerState<PhoneLoginScreen> {
       return;
     }
 
-    await SessionService.save(profile.role);
+    final currentProfile = profile;
+    if (currentProfile.role != widget.role) {
+      try {
+        await AuthService.updateUserRole(widget.role);
+        profile = currentProfile.copyWith(role: widget.role);
+      } catch (_) {}
+    }
+
+    final finalProfile = profile;
+    if (finalProfile == null) return;
+    await SessionService.save(finalProfile.role);
     if (!mounted) return;
 
-    context.go(SessionService.homeForRole(profile.role));
+    context.go(SessionService.homeForRole(finalProfile.role));
   }
 
   void _openOtpScreen() {

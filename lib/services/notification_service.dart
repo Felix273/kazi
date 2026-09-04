@@ -81,6 +81,8 @@ class NotificationService {
     if (userId == null) return;
 
     try {
+      final doc = await FirebaseFirestore.instance.collection('users').doc(userId).get();
+      if (!doc.exists) return;
       await FirebaseFirestore.instance.collection('users').doc(userId).set({
         'fcmToken': token,
         'fcmTokenUpdatedAt': FieldValue.serverTimestamp(),

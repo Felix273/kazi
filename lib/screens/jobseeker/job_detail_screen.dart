@@ -291,7 +291,7 @@ class _JobDetailScreenState extends ConsumerState<JobDetailScreen> {
         job.location.longitude,
       );
 
-      await ApplicationService.applyToJob(
+      await ApplicationService.instance.applyToJob(
         jobId: widget.jobId,
         distanceKm: distanceKm,
       );
@@ -862,7 +862,7 @@ class _JobApplicationBar extends StatelessWidget {
     final scheme = theme.colorScheme;
 
     return StreamBuilder<bool>(
-      stream: Stream.fromFuture(ApplicationService.hasApplied(jobId)),
+      stream: Stream.fromFuture(ApplicationService.instance.hasApplied(jobId)),
       builder: (context, snapshot) {
         final hasApplied = snapshot.data ?? false;
 

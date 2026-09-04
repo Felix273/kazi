@@ -3,6 +3,7 @@
 const axios = require('axios');
 const admin = require('firebase-admin');
 const functions = require('firebase-functions');
+const nodemailer = require('nodemailer');
 
 admin.initializeApp();
 const db = admin.firestore();
@@ -1449,3 +1450,162 @@ exports.updateAverageRating = functions
     );
     return null;
   });
+
+// ===================== Email OTP =====================
+
+const OTP_TTL_MINUTES = 10;
+const OTP_MAX_ATTEMPTS = 5;
+
+function generateOtpCode() {
+  return String(Math.floor(100000 + Math.random() * 900000));
+}
+
+function getOtpMailer() {
+  const host = process.env.SMTP_HOST;
+  const port = Number(process.env.SMTP_PORT || 465);
+  const user = process.env.SMTP_USER;
+  const pass = process.env.SMTP_PASSWORD;
+  if (!host || !user || !pass) {
+    throw new functions.https.HttpsError(
+      'failed-precondition',
+      'Email service is not configured. Contact support.',
+    );
+  }
+  return nodemailer.createTransport({
+    host,
+    port,
+    secure: String(process.env.SMTP_SECURE || 'true').toLowerCase() === 'true',
+    auth: { user, pass },
+  });
+}
+
+function renderOtpEmail({ name, code, minutes }) {
+  const safeName = name || 'there';
+  return {
+    subject: 'Your Kazi verification code',
+    text: `Hi ${safeName},\n\nYour Kazi verification code is ${code}. It expires in ${minutes} minutes.\n\nIf you did not request this code, you can ignore this email.\n\n— The Kazi team`,
+    html: `<div style="font-family:Arial,sans-serif;max-width:520px;margin:auto;padding:24px;background:#f6f8fa;border-radius:12px;">
+      <h2 style="color:#1B5E20;margin-bottom:8px;">Verify your email</h2>
+      <p style="color:#333;font-size:15px;line-height:1.5;">Hi ${safeName},</p>
+      <p style="color:#333;font-size:15px;line-height:1.5;">Use the code below to finish signing in to Kazi. It expires in ${minutes} minutes.</p>
+      <div style="margin:24px 0;text-align:center;">
+        <div style="display:inline-block;background:#1B5E20;color:#FFD600;padding:16px 32px;border-radius:10px;font-size:32px;letter-spacing:6px;font-weight:700;">${code}</div>
+      </div>
+      <p style="color:#666;font-size:13px;line-height:1.5;">If you did not request this code, you can safely ignore this email.</p>
+      <p style="color:#999;font-size:12px;margin-top:24px;">The Kazi team</p>
+    </div>`,
+  };
+}
+
+exports.sendEmailOtp = callable(async (data, context) => {
+  const email = String(data?.email || '').trim().toLowerCase();
+  const purpose = String(data?.purpose || 'login');
+  const displayName = String(data?.name || '').trim();
+
+  if (!email || !/^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$/.test(email)) {
+    throw new functions.https.HttpsError(
+      'invalid-argument',
+      'Enter a valid email address.',
+    );
+  }
+
+  const allowedPurposes = ['login', 'register', 'reset'];
+  const safePurpose = allowedPurposes.includes(purpose) ? purpose : 'login';
+
+  const code = generateOtpCode();
+  const expiresAt = Date.now() + OTP_TTL_MINUTES * 60 * 1000;
+
+  const docId = `${safePurpose}_${email.replace(/[^a-z0-9]/gi, '_')}`;
+  await db.collection('emailOtps').doc(docId).set({
+    email,
+    code,
+    purpose: safePurpose,
+    attempts: 0,
+    expiresAt,
+    createdAt: admin.firestore.FieldValue.serverTimestamp(),
+  });
+
+  try {
+    const mailer = getOtpMailer();
+    const fromName = process.env.OTP_FROM_NAME || 'Kazi';
+    const fromEmail = process.env.OTP_FROM_EMAIL || process.env.SMTP_USER;
+    const message = renderOtpEmail({
+      name: displayName,
+      code,
+      minutes: OTP_TTL_MINUTES,
+    });
+    await mailer.sendMail({
+      from: `${fromName} <${fromEmail}>`,
+      to: email,
+      subject: message.subject,
+      text: message.text,
+      html: message.html,
+    });
+    return { sent: true, expiresAt };
+  } catch (error) {
+    await db.collection('emailOtps').doc(docId).delete().catch(() => null);
+    throw new functions.https.HttpsError(
+      'internal',
+      'We could not send the verification email. Try again in a moment.',
+    );
+  }
+});
+
+exports.verifyEmailOtp = callable(async (data, context) => {
+  const email = String(data?.email || '').trim().toLowerCase();
+  const code = String(data?.code || '').trim();
+  const purpose = String(data?.purpose || 'login');
+
+  if (!email || !/^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$/.test(email)) {
+    throw new functions.https.HttpsError(
+      'invalid-argument',
+      'Enter a valid email address.',
+    );
+  }
+  if (!/^\d{6}$/.test(code)) {
+    throw new functions.https.HttpsError(
+      'invalid-argument',
+      'Enter the 6-digit code from your email.',
+    );
+  }
+
+  const allowedPurposes = ['login', 'register', 'reset'];
+  const safePurpose = allowedPurposes.includes(purpose) ? purpose : 'login';
+  const docId = `${safePurpose}_${email.replace(/[^a-z0-9]/gi, '_')}`;
+  const doc = await db.collection('emailOtps').doc(docId).get();
+
+  if (!doc.exists) {
+    throw new functions.https.HttpsError(
+      'not-found',
+      'No active verification code. Request a new one.',
+    );
+  }
+
+  const record = doc.data() || {};
+  if (Number(record.attempts || 0) >= OTP_MAX_ATTEMPTS) {
+    await db.collection('emailOtps').doc(docId).delete();
+    throw new functions.https.HttpsError(
+      'resource-exhausted',
+      'Too many attempts. Request a new code.',
+    );
+  }
+  if (Number(record.expiresAt || 0) < Date.now()) {
+    await db.collection('emailOtps').doc(docId).delete();
+    throw new functions.https.HttpsError(
+      'deadline-exceeded',
+      'The verification code has expired. Request a new one.',
+    );
+  }
+  if (String(record.code) !== code) {
+    await db.collection('emailOtps').doc(docId).update({
+      attempts: admin.firestore.FieldValue.increment(1),
+    });
+    throw new functions.https.HttpsError(
+      'invalid-argument',
+      'The verification code is incorrect.',
+    );
+  }
+
+  await db.collection('emailOtps').doc(docId).delete();
+  return { verified: true, email };
+});

@@ -4,8 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../constants/app_constants.dart';
-
 import '../../models/job_model.dart';
 import '../../utils/app_theme.dart';
 import '../../utils/widget_builder.dart';
@@ -80,7 +78,7 @@ class EmployerDashboardScreen extends ConsumerWidget {
     }
 
     return Scaffold(
-      bottomNavigationBar: const _EmployerNavigation(currentIndex: 0),
+      bottomNavigationBar: Widgets.employerBottomNav(context),
       body: RefreshIndicator(
         onRefresh: refreshDashboard,
         child: CustomScrollView(
@@ -775,53 +773,6 @@ class _EmployerStateCard extends StatelessWidget {
           ],
         ),
       ),
-    );
-  }
-}
-
-class _EmployerNavigation extends StatelessWidget {
-  const _EmployerNavigation({required this.currentIndex});
-
-  final int currentIndex;
-
-  @override
-  Widget build(BuildContext context) {
-    return NavigationBar(
-      selectedIndex: currentIndex,
-      onDestinationSelected: (index) {
-        switch (index) {
-          case 0:
-            context.go('/employer/home');
-          case 1:
-            context.go('/employer/post-job');
-          case 2:
-            context.go('/chat', extra: {'role': AppConstants.roleEmployer});
-          case 3:
-            context.go('/profile', extra: {'role': AppConstants.roleEmployer});
-        }
-      },
-      destinations: const [
-        NavigationDestination(
-          icon: Icon(Icons.dashboard_outlined),
-          selectedIcon: Icon(Icons.dashboard_rounded),
-          label: 'Overview',
-        ),
-        NavigationDestination(
-          icon: Icon(Icons.add_circle_outline_rounded),
-          selectedIcon: Icon(Icons.add_circle_rounded),
-          label: 'Post job',
-        ),
-        NavigationDestination(
-          icon: Icon(Icons.chat_bubble_outline_rounded),
-          selectedIcon: Icon(Icons.chat_bubble_rounded),
-          label: 'Messages',
-        ),
-        NavigationDestination(
-          icon: Icon(Icons.person_outline_rounded),
-          selectedIcon: Icon(Icons.person_rounded),
-          label: 'Account',
-        ),
-      ],
     );
   }
 }

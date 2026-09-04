@@ -9,6 +9,9 @@ class JobModel {
   final double salaryKES;
   final int duration;
   final String durationType;
+  final double estimatedHours;
+  final int workerCount;
+  final String complexity;
   final DateTime startDate;
   final bool isUrgent;
   final String employerId;
@@ -35,6 +38,9 @@ class JobModel {
     required this.salaryKES,
     required this.duration,
     required this.durationType,
+    this.estimatedHours = 1.0,
+    this.workerCount = 1,
+    this.complexity = 'simple',
     required this.startDate,
     required this.isUrgent,
     required this.employerId,
@@ -67,6 +73,9 @@ class JobModel {
       salaryKES: (map['salaryKES'] as num?)?.toDouble() ?? 0,
       duration: (map['duration'] as num?)?.toInt() ?? 1,
       durationType: map['durationType'] as String? ?? 'hours',
+      estimatedHours: (map['estimatedHours'] as num?)?.toDouble() ?? 1.0,
+      workerCount: (map['workerCount'] as num?)?.toInt() ?? 1,
+      complexity: map['complexity'] as String? ?? 'simple',
       startDate: (map['startDate'] as Timestamp?)?.toDate() ?? DateTime.now(),
       isUrgent: map['isUrgent'] as bool? ?? false,
       employerId: map['employerId'] as String? ?? '',
@@ -98,6 +107,9 @@ class JobModel {
       'platformFeeKES': platformFee,
       'duration': duration,
       'durationType': durationType,
+      'estimatedHours': estimatedHours,
+      'workerCount': workerCount,
+      'complexity': complexity,
       'startDate': Timestamp.fromDate(startDate),
       'isUrgent': isUrgent,
       'employerId': employerId,
@@ -124,6 +136,9 @@ class JobModel {
     double? salaryKES,
     int? duration,
     String? durationType,
+    double? estimatedHours,
+    int? workerCount,
+    String? complexity,
     DateTime? startDate,
     bool? isUrgent,
     String? employerId,
@@ -150,6 +165,9 @@ class JobModel {
       salaryKES: salaryKES ?? this.salaryKES,
       duration: duration ?? this.duration,
       durationType: durationType ?? this.durationType,
+      estimatedHours: estimatedHours ?? this.estimatedHours,
+      workerCount: workerCount ?? this.workerCount,
+      complexity: complexity ?? this.complexity,
       startDate: startDate ?? this.startDate,
       isUrgent: isUrgent ?? this.isUrgent,
       employerId: employerId ?? this.employerId,
@@ -172,4 +190,19 @@ class JobModel {
   double get employerPays => salaryKES * 1.10;
   double get workerEarns => salaryKES * 0.95;
   double get platformFee => salaryKES * 0.15;
+
+  static const Map<String, double> _complexityMultipliers = {
+    'simple': 1.0,
+    'moderate': 1.5,
+    'complex': 2.0,
+  };
+
+  double get workScore {
+    final complexityMultiplier = _complexityMultipliers[complexity] ?? 1.0;
+    return estimatedHours * complexityMultiplier * workerCount;
+  }
+
+  double get totalLaborHours => estimatedHours * workerCount;
+
+  double get effectiveHourlyRate => salaryKES / totalLaborHours;
 }

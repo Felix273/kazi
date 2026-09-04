@@ -496,9 +496,11 @@ class _NotificationHero extends StatelessWidget {
                 AppSpacing.lg,
                 AppSpacing.lg,
               ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
+              child: SingleChildScrollView(
+                physics: const NeverScrollableScrollPhysics(),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
                   Container(
                     width: 49,
                     height: 49,
@@ -534,7 +536,7 @@ class _NotificationHero extends StatelessWidget {
                       height: 1.45,
                     ),
                   ),
-                  const Spacer(),
+                  const SizedBox(height: AppSpacing.xl),
                   Container(
                     padding: const EdgeInsets.symmetric(
                       horizontal: AppSpacing.md,
@@ -567,6 +569,7 @@ class _NotificationHero extends StatelessWidget {
                   ),
                 ],
               ),
+            ),
             ),
           ),
         ],

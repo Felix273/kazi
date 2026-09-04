@@ -58,11 +58,14 @@ class _ViewApplicantsScreenState extends State<ViewApplicantsScreen> {
 
         return Scaffold(
           body: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-            stream: FirebaseFirestore.instance
-                .collection('applications')
-                .where('jobId', isEqualTo: widget.jobId)
-                .orderBy('appliedAt', descending: false)
-                .snapshots(),
+            stream: (jobData == null || jobData['employerId'] == null)
+                ? const Stream.empty()
+                : FirebaseFirestore.instance
+                    .collection('applications')
+                    .where('jobId', isEqualTo: widget.jobId)
+                    .where('employerId', isEqualTo: jobData['employerId'] as String)
+                    .orderBy('appliedAt', descending: false)
+                    .snapshots(),
             builder: (context, applicationSnapshot) {
               if (applicationSnapshot.connectionState ==
                   ConnectionState.waiting) {
