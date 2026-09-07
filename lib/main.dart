@@ -1,9 +1,12 @@
 import 'dart:async';
 import 'dart:ui' as ui;
 
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -53,6 +56,12 @@ Future<void> main() async {
   try {
     await Firebase.initializeApp();
     FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
+
+    if (kDebugMode) {
+      FirebaseFunctions.instanceFor(region: 'africa-south1')
+          .useFunctionsEmulator('127.0.0.1', 5002);
+      FirebaseFirestore.instance.useFirestoreEmulator('127.0.0.1', 8181);
+    }
 
     FlutterError.onError = FirebaseCrashlytics.instance.recordFlutterFatalError;
     ui.PlatformDispatcher.instance.onError = (error, stack) {

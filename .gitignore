@@ -52,3 +52,4 @@ functions/.env.*
 **/build/
 **/.kotlin/
 **/node_modules/
+**/.next/
