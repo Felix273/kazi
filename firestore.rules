@@ -311,11 +311,13 @@ service cloud.firestore {
 
     match /disputes/{disputeId} {
       allow list: if signedIn() && (
+        isAdmin() ||
         resource.data.reporterId == request.auth.uid ||
         resource.data.reportedId == request.auth.uid
       );
       allow get: if signedIn() && (
         resource == null ||
+        isAdmin() ||
         resource.data.reporterId == request.auth.uid ||
         resource.data.reportedId == request.auth.uid
       );
