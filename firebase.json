@@ -44,8 +44,8 @@
       "port": 5002
     },
     "ui": {
-      "enabled": false,
-      "port": 4001
+      "enabled": true,
+      "port": 4000
     }
   }
 }
