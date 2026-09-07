@@ -27,6 +27,25 @@ class PaymentService {
     }
   }
 
+  static Future<Map<String, dynamic>> mockHireApplicant({
+    required String jobId,
+    required String applicationId,
+    required String workerId,
+    required String phone,
+  }) async {
+    try {
+      final result = await _functions.httpsCallable('mockHireApplicant').call({
+        'jobId': jobId,
+        'applicationId': applicationId,
+        'workerId': workerId,
+        'phone': phone,
+      });
+      return Map<String, dynamic>.from(result.data as Map);
+    } on FirebaseFunctionsException catch (error) {
+      throw StateError(error.message ?? 'Demo payment failed.');
+    }
+  }
+
   static Future<Map<String, dynamic>> initiateB2CPayout({
     required double amount,
     required String phone,

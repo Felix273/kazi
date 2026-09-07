@@ -228,8 +228,40 @@ class _ViewApplicantsScreenState extends State<ViewApplicantsScreen> {
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: AppSpacing.md,
+                  vertical: AppSpacing.sm,
+                ),
+                decoration: BoxDecoration(
+                  color: scheme.tertiaryContainer.withValues(alpha: 0.7),
+                  borderRadius: BorderRadius.circular(AppRadius.md),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Icons.science_outlined,
+                      size: 18,
+                      color: scheme.onTertiaryContainer,
+                    ),
+                    const SizedBox(width: AppSpacing.sm),
+                    Expanded(
+                      child: Text(
+                        'Demo mode: no real money will be charged.',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: scheme.onTertiaryContainer,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: AppSpacing.md),
               Text(
-                'An M-Pesa payment prompt will be sent to your registered phone number.',
+                'Confirming will simulate the M-Pesa payment, mark the applicant as hired, and escrow the funds.',
                 textAlign: TextAlign.center,
                 style: theme.textTheme.bodyMedium?.copyWith(
                   color: scheme.onSurfaceVariant,
@@ -267,7 +299,7 @@ class _ViewApplicantsScreenState extends State<ViewApplicantsScreen> {
               ),
               const SizedBox(height: AppSpacing.md),
               Text(
-                'The applicant will be hired after payment is confirmed.',
+                'The applicant will be hired after the demo payment is confirmed.',
                 textAlign: TextAlign.center,
                 style: theme.textTheme.bodySmall?.copyWith(
                   color: scheme.onSurfaceVariant,
@@ -286,8 +318,8 @@ class _ViewApplicantsScreenState extends State<ViewApplicantsScreen> {
               onPressed: () {
                 Navigator.pop(dialogContext, true);
               },
-              icon: const Icon(Icons.phone_iphone_rounded),
-              label: const Text('Continue'),
+              icon: const Icon(Icons.science_outlined),
+              label: const Text('Simulate hire'),
             ),
           ],
         );
@@ -322,7 +354,7 @@ class _ViewApplicantsScreenState extends State<ViewApplicantsScreen> {
         throw StateError('Add your M-Pesa phone number to your profile first.');
       }
 
-      final result = await PaymentService.hireApplicant(
+      final result = await PaymentService.mockHireApplicant(
         jobId: widget.jobId,
         applicationId: applicationId,
         workerId: applicantId,
@@ -337,8 +369,8 @@ class _ViewApplicantsScreenState extends State<ViewApplicantsScreen> {
         SnackBar(
           content: Text(
             mockCompleted
-                ? 'The applicant has been hired successfully.'
-                : 'The M-Pesa prompt was sent. Confirm the payment on your phone.',
+                ? 'Demo hire complete. Funds are escrowed.'
+                : 'Demo payment could not be completed.',
           ),
           backgroundColor: AppTheme.success,
         ),

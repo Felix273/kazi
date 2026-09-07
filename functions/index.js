@@ -412,6 +412,126 @@ exports.initiateSTKPush = callable.onCall(async (data, context) => {
   }
 });
 
+exports.mockHireApplicant = callable.onCall(async (data, context) => {
+  const employerId = requireAuth(context);
+  const { jobId, applicationId, workerId } = data || {};
+  if (!jobId || !applicationId || !workerId) {
+    throw new functions.https.HttpsError(
+      'invalid-argument',
+      'jobId, applicationId and workerId are required.',
+    );
+  }
+
+  const jobRef = db.collection('jobs').doc(jobId);
+  const applicationRef = db.collection('applications').doc(applicationId);
+  const paymentRef = db.collection('transactions').doc();
+  const phone = normalizePhone(data.phone);
+
+  await db.runTransaction(async (transaction) => {
+    const [jobSnapshot, applicationSnapshot] = await Promise.all([
+      transaction.get(jobRef),
+      transaction.get(applicationRef),
+    ]);
+    if (!jobSnapshot.exists || !applicationSnapshot.exists) {
+      throw new functions.https.HttpsError(
+        'not-found',
+        'Job or application not found.',
+      );
+    }
+    const job = jobSnapshot.data();
+    const application = applicationSnapshot.data();
+    if (job.employerId !== employerId) {
+      throw new functions.https.HttpsError(
+        'permission-denied',
+        'You do not own this job.',
+      );
+    }
+    if (job.status !== 'open') {
+      throw new functions.https.HttpsError(
+        'failed-precondition',
+        'This job is not open for hiring.',
+      );
+    }
+    if (application.jobId !== jobId || application.workerId !== workerId) {
+      throw new functions.https.HttpsError(
+        'invalid-argument',
+        'Application mismatch.',
+      );
+    }
+    if (application.status !== 'pending') {
+      throw new functions.https.HttpsError(
+        'failed-precondition',
+        'This application is no longer pending.',
+      );
+    }
+
+    const salary = Number(job.salaryKES || 0);
+    const amount = Math.max(1, Math.round(Number(job.employerPaysKES || salary * 1.1)));
+    const workerEarns = Number(job.workerEarnsKES || salary * 0.95);
+    const platformFee = Number(job.platformFeeKES || salary * 0.15);
+
+    transaction.update(jobRef, {
+      status: 'hired',
+      paymentStatus: 'escrowed',
+      hiredWorkerId: workerId,
+      hiredWorkerName: application.workerName || 'Worker',
+      hiredApplicationId: applicationId,
+      hiredAt: admin.firestore.FieldValue.serverTimestamp(),
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+    transaction.update(applicationRef, {
+      status: 'accepted',
+      acceptedAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+    transaction.set(paymentRef, {
+      userId: employerId,
+      employerId,
+      workerId,
+      jobId,
+      applicationId,
+      type: 'job_payment',
+      amount,
+      workerEarns,
+      platformFee,
+      phone,
+      status: 'escrowed',
+      mpesaReceiptNumber: `DEMO-${Date.now()}`,
+      completedAt: admin.firestore.FieldValue.serverTimestamp(),
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      isDemo: true,
+    });
+    transaction.set(
+      db.collection('chats').doc(`${jobId}_${workerId}`),
+      {
+        jobId,
+        employerId,
+        workerId,
+        participantIds: [employerId, workerId],
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      },
+      { merge: true },
+    );
+  });
+
+  await declineOtherApplications(jobId, applicationId);
+  const jobDoc = await jobRef.get();
+  const jobData = jobDoc.data();
+  await sendNotificationToUser(
+    workerId,
+    'Umechaguliwa! (Demo)',
+    `Umechaguliwa kwa kazi ya ${jobData?.title || 'Kazi'}.`,
+    { type: 'KAZI_HIRED', jobId, demo: true },
+  );
+
+  return {
+    status: 'mock_completed',
+    transactionId: paymentRef.id,
+    demo: true,
+    message: 'Demo payment processed. No real money was charged.',
+  };
+});
+
 exports.mpesaCallback = functions.region(REGION).https.onRequest(async (req, res) => {
   try {
     const callback = req.body?.Body?.stkCallback;
