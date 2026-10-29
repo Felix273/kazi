@@ -14,7 +14,6 @@ import {
   Sparkles,
   MapPin,
   Layers,
-  CheckCircle2,
 } from "lucide-react";
 import Link from "next/link";
 import {
@@ -46,73 +45,120 @@ interface ActivityItem {
   status: string;
 }
 
-const weeklyTrendData = [
-  { day: "Mon", jobs: 12, escrow: 18500, workers: 8 },
-  { day: "Tue", jobs: 19, escrow: 24200, workers: 14 },
-  { day: "Wed", jobs: 15, escrow: 21000, workers: 12 },
-  { day: "Thu", jobs: 22, escrow: 32000, workers: 18 },
-  { day: "Fri", jobs: 28, escrow: 41500, workers: 22 },
-  { day: "Sat", jobs: 35, escrow: 52000, workers: 29 },
-  { day: "Sun", jobs: 24, escrow: 36000, workers: 20 },
-];
+interface CategoryDistItem {
+  name: string;
+  value: number;
+  color: string;
+}
 
-const categoryDistribution = [
-  { name: "Plumbing", value: 35, color: "#059669" },
-  { name: "Cleaning", value: 28, color: "#2563eb" },
-  { name: "Electrical", value: 20, color: "#d97706" },
-  { name: "Childcare", value: 17, color: "#7c3aed" },
-];
+interface TrendItem {
+  day: string;
+  jobs: number;
+  escrow: number;
+}
+
+const CATEGORY_COLORS = ["#059669", "#2563eb", "#d97706", "#7c3aed", "#e11d48", "#0891b2"];
 
 export default function DashboardOverview() {
   const [metrics, setMetrics] = useState<MetricData>({
-    activeJobs: 3,
-    pendingKyc: 4,
+    activeJobs: 0,
+    pendingKyc: 0,
     openDisputes: 0,
-    totalEscrow: 7150,
+    totalEscrow: 0,
   });
 
   const [activities, setActivities] = useState<ActivityItem[]>([]);
+  const [categoryDist, setCategoryDist] = useState<CategoryDistItem[]>([]);
+  const [dailyTrend, setDailyTrend] = useState<TrendItem[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // 1. Jobs Listener
+    // 1. Live Jobs Listener
     const unsubJobs = onSnapshot(collection(db, "jobs"), (snapshot) => {
       let activeCount = 0;
       let escrowSum = 0;
       const actList: ActivityItem[] = [];
+      const catCounts: Record<string, number> = {};
+      const dayCounts: Record<string, { jobs: number; escrow: number }> = {
+        Mon: { jobs: 0, escrow: 0 },
+        Tue: { jobs: 0, escrow: 0 },
+        Wed: { jobs: 0, escrow: 0 },
+        Thu: { jobs: 0, escrow: 0 },
+        Fri: { jobs: 0, escrow: 0 },
+        Sat: { jobs: 0, escrow: 0 },
+        Sun: { jobs: 0, escrow: 0 },
+      };
+
+      const daysOfWeek = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
       snapshot.docs.forEach((doc) => {
         const data = doc.data();
-        if (data.status === "open" || data.status === "in_progress") {
+        const status = data.status || "open";
+        const budget = typeof data.budget === "number" ? data.budget : 0;
+        const cat = data.category || "General";
+
+        if (status === "open" || status === "in_progress") {
           activeCount++;
+          escrowSum += budget;
         }
-        if (data.budget && typeof data.budget === "number") {
-          escrowSum += data.budget;
+
+        // Tally category
+        catCounts[cat] = (catCounts[cat] || 0) + 1;
+
+        // Tally day trend if createdAt exists
+        if (data.createdAt) {
+          const date = data.createdAt.toDate ? data.createdAt.toDate() : new Date(data.createdAt);
+          const dayName = daysOfWeek[date.getDay()];
+          if (dayCounts[dayName]) {
+            dayCounts[dayName].jobs++;
+            dayCounts[dayName].escrow += budget;
+          }
         }
+
         actList.push({
           id: doc.id,
           title: data.title || "Untitled Task",
-          category: data.category || "General",
+          category: cat,
           locationName: data.locationName || "Nairobi",
-          budget: data.budget || 0,
+          budget,
           createdAt: data.createdAt,
-          status: data.status || "open",
+          status,
         });
       });
 
       setMetrics((prev) => ({
         ...prev,
-        activeJobs: activeCount || prev.activeJobs,
-        totalEscrow: escrowSum || prev.totalEscrow,
+        activeJobs: activeCount,
+        totalEscrow: escrowSum,
       }));
 
-      if (actList.length > 0) {
-        setActivities(actList.slice(0, 5));
+      setActivities(actList.slice(0, 5));
+
+      // Calculate category distribution percentages directly from backend docs
+      const totalDocs = snapshot.docs.length;
+      if (totalDocs > 0) {
+        const dist = Object.entries(catCounts).map(([name, count], index) => ({
+          name,
+          value: Math.round((count / totalDocs) * 100),
+          color: CATEGORY_COLORS[index % CATEGORY_COLORS.length],
+        }));
+        setCategoryDist(dist);
+      } else {
+        setCategoryDist([]);
       }
+
+      // Format weekly trend
+      const trendArr = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((day) => ({
+        day,
+        jobs: dayCounts[day].jobs,
+        escrow: dayCounts[day].escrow,
+      }));
+      setDailyTrend(trendArr);
+
       setLoading(false);
     });
 
-    // 2. Disputes Listener
+    // 2. Live Disputes Listener
     const unsubDisputes = onSnapshot(collection(db, "disputes"), (snapshot) => {
       let disputeCount = 0;
       snapshot.docs.forEach((doc) => {
@@ -123,7 +169,7 @@ export default function DashboardOverview() {
       setMetrics((prev) => ({ ...prev, openDisputes: disputeCount }));
     });
 
-    // 3. KYC Queue Listener
+    // 3. Live KYC Queue Listener
     const unsubUsers = onSnapshot(collection(db, "users"), (snapshot) => {
       let kycCount = 0;
       snapshot.docs.forEach((doc) => {
@@ -132,7 +178,7 @@ export default function DashboardOverview() {
           kycCount++;
         }
       });
-      setMetrics((prev) => ({ ...prev, pendingKyc: kycCount || prev.pendingKyc }));
+      setMetrics((prev) => ({ ...prev, pendingKyc: kycCount }));
     });
 
     return () => {
@@ -151,7 +197,7 @@ export default function DashboardOverview() {
             <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold tracking-wider uppercase bg-emerald-100 text-emerald-800 border border-emerald-200">
               Live Operations Stream
             </span>
-            <span className="text-xs text-slate-500 font-mono">Nairobi Marketplace Hub</span>
+            <span className="text-xs text-slate-500 font-mono">100% Backend Live Sync</span>
           </div>
           <h1 className="text-3xl font-black text-slate-900 tracking-tight">Executive Dashboard</h1>
           <p className="text-slate-500 text-xs mt-1">
@@ -177,7 +223,7 @@ export default function DashboardOverview() {
         </div>
       </div>
 
-      {/* Top Professional White Metric Cards */}
+      {/* Top Metric Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
         {/* Active Jobs */}
         <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-sm shadow-slate-100 hover:shadow-md transition-all space-y-3 relative overflow-hidden group">
@@ -190,13 +236,13 @@ export default function DashboardOverview() {
           <div className="flex items-baseline justify-between">
             <span className="text-3xl font-black text-slate-900 font-mono">{metrics.activeJobs}</span>
             <span className="text-[11px] font-bold text-emerald-600 flex items-center gap-0.5">
-              <ArrowUpRight className="w-3 h-3" /> +14% wk
+              <ArrowUpRight className="w-3 h-3" /> Live
             </span>
           </div>
           <p className="text-[11px] text-slate-500">Open & in-progress postings</p>
           <div className="h-10 w-full pt-2">
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={weeklyTrendData}>
+              <AreaChart data={dailyTrend}>
                 <Area type="monotone" dataKey="jobs" stroke="#059669" fill="#d1fae5" strokeWidth={2} />
               </AreaChart>
             </ResponsiveContainer>
@@ -220,8 +266,8 @@ export default function DashboardOverview() {
           <p className="text-[11px] text-slate-500">Smile Identity verification queue</p>
           <div className="h-10 w-full pt-2">
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={weeklyTrendData}>
-                <Area type="monotone" dataKey="workers" stroke="#d97706" fill="#fef3c7" strokeWidth={2} />
+              <AreaChart data={dailyTrend}>
+                <Area type="monotone" dataKey="jobs" stroke="#d97706" fill="#fef3c7" strokeWidth={2} />
               </AreaChart>
             </ResponsiveContainer>
           </div>
@@ -238,13 +284,15 @@ export default function DashboardOverview() {
           <div className="flex items-baseline justify-between">
             <span className="text-3xl font-black text-slate-900 font-mono">{metrics.openDisputes}</span>
             <span className="text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
-              100% Healthy
+              {metrics.openDisputes === 0 ? "100% Healthy" : "Action Needed"}
             </span>
           </div>
           <p className="text-[11px] text-slate-500">Adjudication & frozen funds</p>
           <div className="h-10 w-full pt-2 flex items-center">
             <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden border border-slate-200/60">
-              <div className="bg-emerald-500 h-full w-full" />
+              <div
+                className={`h-full ${metrics.openDisputes === 0 ? "bg-emerald-500 w-full" : "bg-rose-500 w-1/2"}`}
+              />
             </div>
           </div>
         </div>
@@ -268,7 +316,7 @@ export default function DashboardOverview() {
           <p className="text-[11px] text-slate-500">Locked platform payment balance</p>
           <div className="h-10 w-full pt-2">
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={weeklyTrendData}>
+              <AreaChart data={dailyTrend}>
                 <Area type="monotone" dataKey="escrow" stroke="#2563eb" fill="#dbeafe" strokeWidth={2} />
               </AreaChart>
             </ResponsiveContainer>
@@ -276,7 +324,7 @@ export default function DashboardOverview() {
         </div>
       </div>
 
-      {/* Main Professional Charts & Analytics Section */}
+      {/* Main Charts & Analytics Section */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Main Escrow & Job Velocity Chart */}
         <div className="lg:col-span-2 bg-white p-6 rounded-2xl border border-slate-200/80 shadow-sm shadow-slate-100 space-y-4">
@@ -285,7 +333,7 @@ export default function DashboardOverview() {
               <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
                 <Activity className="w-4 h-4 text-emerald-600" /> Marketplace Escrow & Work Velocity
               </h2>
-              <p className="text-xs text-slate-500">Weekly telemetry analysis of posted jobs vs M-Pesa lock volume</p>
+              <p className="text-xs text-slate-500">Live Backend document timeline analysis</p>
             </div>
             <div className="flex items-center gap-2 text-xs font-semibold">
               <span className="flex items-center gap-1.5 text-slate-700">
@@ -299,7 +347,7 @@ export default function DashboardOverview() {
 
           <div className="h-72 w-full pt-2">
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={weeklyTrendData}>
+              <AreaChart data={dailyTrend}>
                 <defs>
                   <linearGradient id="escrowLightGrad" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="5%" stopColor="#059669" stopOpacity={0.3} />
@@ -350,42 +398,48 @@ export default function DashboardOverview() {
             <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
               <Layers className="w-4 h-4 text-purple-600" /> Work Category Distribution
             </h2>
-            <p className="text-xs text-slate-500">Demand share across Nairobi skills</p>
+            <p className="text-xs text-slate-500">Live category breakdown from Firestore</p>
           </div>
 
           <div className="h-48 w-full relative flex items-center justify-center">
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie
-                  data={categoryDistribution}
-                  innerRadius={55}
-                  outerRadius={75}
-                  paddingAngle={5}
-                  dataKey="value"
-                >
-                  {categoryDistribution.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={entry.color} />
-                  ))}
-                </Pie>
-                <Tooltip
-                  contentStyle={{
-                    backgroundColor: "#ffffff",
-                    borderColor: "#e2e8f0",
-                    borderRadius: "10px",
-                    color: "#0f172a",
-                    fontSize: "12px",
-                  }}
-                />
-              </PieChart>
-            </ResponsiveContainer>
-            <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-              <span className="text-xl font-black text-slate-900 font-mono">100%</span>
-              <span className="text-[10px] text-slate-400 uppercase font-semibold">Allocated</span>
-            </div>
+            {categoryDist.length === 0 ? (
+              <div className="text-xs text-slate-400">No category documents found</div>
+            ) : (
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={categoryDist}
+                    innerRadius={55}
+                    outerRadius={75}
+                    paddingAngle={5}
+                    dataKey="value"
+                  >
+                    {categoryDist.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={entry.color} />
+                    ))}
+                  </Pie>
+                  <Tooltip
+                    contentStyle={{
+                      backgroundColor: "#ffffff",
+                      borderColor: "#e2e8f0",
+                      borderRadius: "10px",
+                      color: "#0f172a",
+                      fontSize: "12px",
+                    }}
+                  />
+                </PieChart>
+              </ResponsiveContainer>
+            )}
+            {categoryDist.length > 0 && (
+              <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                <span className="text-xl font-black text-slate-900 font-mono">100%</span>
+                <span className="text-[10px] text-slate-400 uppercase font-semibold">Live Data</span>
+              </div>
+            )}
           </div>
 
           <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-100">
-            {categoryDistribution.map((item) => (
+            {categoryDist.map((item) => (
               <div key={item.name} className="flex items-center justify-between p-2 rounded-lg bg-slate-50">
                 <span className="flex items-center gap-1.5 text-xs text-slate-700 font-medium">
                   <span className="w-2 h-2 rounded-full" style={{ backgroundColor: item.color }} />
@@ -398,9 +452,8 @@ export default function DashboardOverview() {
         </div>
       </div>
 
-      {/* Live Stream & Action Modules */}
+      {/* Live Activity Feed */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Real-Time Live Activity Feed */}
         <div className="lg:col-span-2 bg-white p-6 rounded-2xl border border-slate-200/80 shadow-sm shadow-slate-100 space-y-4">
           <div className="flex items-center justify-between border-b border-slate-100 pb-4">
             <div className="flex items-center gap-2">
@@ -417,7 +470,7 @@ export default function DashboardOverview() {
             {loading ? (
               <div className="p-8 text-center text-xs text-slate-400">Loading live activity feed...</div>
             ) : activities.length === 0 ? (
-              <div className="p-8 text-center text-xs text-slate-400">No recent activities recorded</div>
+              <div className="p-8 text-center text-xs text-slate-400">No recent activities recorded in database</div>
             ) : (
               activities.map((act) => (
                 <div
@@ -453,9 +506,9 @@ export default function DashboardOverview() {
           </div>
         </div>
 
-        {/* Action Modules */}
+        {/* Management Controls */}
         <div className="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-sm shadow-slate-100 space-y-4">
-          <h3 className="font-bold text-slate-900 text-sm border-b border-slate-100 pb-3">Management Modules</h3>
+          <h3 className="font-bold text-slate-900 text-sm border-b border-slate-100 pb-3">Management Controls</h3>
           <div className="space-y-3">
             <Link
               href="/pricing"

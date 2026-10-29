@@ -13,46 +13,68 @@ interface FinancialSummary {
   activeTransactions: number;
 }
 
-const monthlyRevenueHistory = [
-  { month: "Jan", escrow: 120000, commission: 18000, payouts: 102000 },
-  { month: "Feb", escrow: 165000, commission: 24750, payouts: 140250 },
-  { month: "Mar", escrow: 210000, commission: 31500, payouts: 178500 },
-  { month: "Apr", escrow: 195000, commission: 29250, payouts: 165750 },
-  { month: "May", escrow: 280000, commission: 42000, payouts: 238000 },
-  { month: "Jun", escrow: 340000, commission: 51000, payouts: 289000 },
-];
+interface MonthlyHistoryItem {
+  month: string;
+  escrow: number;
+  commission: number;
+}
 
 export default function FinancePage() {
   const [summary, setSummary] = useState<FinancialSummary>({
-    totalEscrowHeld: 7150,
-    totalCommission: 1072.5,
-    totalPayouts: 6077.5,
-    activeTransactions: 3,
+    totalEscrowHeld: 0,
+    totalCommission: 0,
+    totalPayouts: 0,
+    activeTransactions: 0,
   });
+
+  const [monthlyTrend, setMonthlyTrend] = useState<MonthlyHistoryItem[]>([]);
 
   useEffect(() => {
     const unsub = onSnapshot(collection(db, "jobs"), (snapshot) => {
       let totalBudget = 0;
       let count = 0;
+      const monthMap: Record<string, number> = {
+        Jan: 0, Feb: 0, Mar: 0, Apr: 0, May: 0, Jun: 0,
+        Jul: 0, Aug: 0, Sep: 0, Oct: 0, Nov: 0, Dec: 0,
+      };
+
+      const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
       snapshot.docs.forEach((doc) => {
         const data = doc.data();
-        if (data.budget && typeof data.budget === "number") {
-          totalBudget += data.budget;
+        const budget = typeof data.budget === "number" ? data.budget : 0;
+        if (budget > 0) {
+          totalBudget += budget;
           count++;
+        }
+
+        if (data.createdAt) {
+          const date = data.createdAt.toDate ? data.createdAt.toDate() : new Date(data.createdAt);
+          const mName = monthNames[date.getMonth()];
+          if (mName) {
+            monthMap[mName] += budget;
+          }
         }
       });
 
-      if (totalBudget > 0) {
-        const comm = totalBudget * 0.15;
-        const payouts = totalBudget - comm;
-        setSummary({
-          totalEscrowHeld: totalBudget,
-          totalCommission: comm,
-          totalPayouts: payouts,
-          activeTransactions: count,
-        });
-      }
+      const comm = totalBudget * 0.15;
+      const payouts = totalBudget - comm;
+
+      setSummary({
+        totalEscrowHeld: totalBudget,
+        totalCommission: comm,
+        totalPayouts: payouts,
+        activeTransactions: count,
+      });
+
+      // Filter non-zero or active months for chart
+      const activeMonths = monthNames.map((m) => ({
+        month: m,
+        escrow: monthMap[m],
+        commission: monthMap[m] * 0.15,
+      }));
+
+      setMonthlyTrend(activeMonths);
     });
 
     return () => unsub();
@@ -67,7 +89,7 @@ export default function FinancePage() {
             <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold tracking-wider uppercase bg-emerald-100 text-emerald-800 border border-emerald-200">
               M-Pesa Escrow & Revenue Ledger
             </span>
-            <span className="text-xs text-slate-500 font-mono">15% Marketplace Take-Rate</span>
+            <span className="text-xs text-slate-500 font-mono">100% Real Firestore Data</span>
           </div>
           <h1 className="text-3xl font-black text-slate-900 tracking-tight">Financial & Escrow Analytics</h1>
           <p className="text-slate-500 text-xs mt-1">
@@ -144,13 +166,13 @@ export default function FinancePage() {
               <h3 className="font-bold text-slate-900 text-sm flex items-center gap-2">
                 <TrendingUp className="w-4 h-4 text-emerald-600" /> Monthly Gross Escrow vs Net Platform Revenue
               </h3>
-              <p className="text-xs text-slate-500">Historical performance trajectory in Nairobi</p>
+              <p className="text-xs text-slate-500">Calculated directly from real database job budgets</p>
             </div>
           </div>
 
           <div className="h-72 w-full pt-2">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={monthlyRevenueHistory}>
+              <BarChart data={monthlyTrend}>
                 <XAxis dataKey="month" stroke="#94a3b8" fontSize={11} tickLine={false} axisLine={false} />
                 <YAxis stroke="#94a3b8" fontSize={11} tickLine={false} axisLine={false} />
                 <Tooltip

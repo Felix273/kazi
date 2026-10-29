@@ -22,17 +22,15 @@ interface DisputeItem {
   createdAt?: any;
 }
 
-const disputeTrendMock = [
-  { month: "Jan", open: 3, resolved: 12 },
-  { month: "Feb", open: 2, resolved: 15 },
-  { month: "Mar", open: 4, resolved: 18 },
-  { month: "Apr", open: 1, resolved: 14 },
-  { month: "May", open: 2, resolved: 22 },
-  { month: "Jun", open: 0, resolved: 19 },
-];
+interface MonthlyDisputeItem {
+  month: string;
+  open: number;
+  resolved: number;
+}
 
 export default function DisputeCenterPage() {
   const [disputes, setDisputes] = useState<DisputeItem[]>([]);
+  const [monthlyTrend, setMonthlyTrend] = useState<MonthlyDisputeItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [resolvingId, setResolvingId] = useState<string | null>(null);
   const [resolutionNote, setResolutionNote] = useState<string>("");
@@ -48,10 +46,43 @@ export default function DisputeCenterPage() {
           ...doc.data(),
         }));
         setDisputes(list);
+
+        const monthMap: Record<string, { open: number; resolved: number }> = {
+          Jan: { open: 0, resolved: 0 }, Feb: { open: 0, resolved: 0 }, Mar: { open: 0, resolved: 0 },
+          Apr: { open: 0, resolved: 0 }, May: { open: 0, resolved: 0 }, Jun: { open: 0, resolved: 0 },
+          Jul: { open: 0, resolved: 0 }, Aug: { open: 0, resolved: 0 }, Sep: { open: 0, resolved: 0 },
+          Oct: { open: 0, resolved: 0 }, Nov: { open: 0, resolved: 0 }, Dec: { open: 0, resolved: 0 },
+        };
+
+        const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+        snapshot.docs.forEach((doc) => {
+          const d = doc.data();
+          if (d.createdAt) {
+            const date = d.createdAt.toDate ? d.createdAt.toDate() : new Date(d.createdAt);
+            const mName = monthNames[date.getMonth()];
+            if (monthMap[mName]) {
+              if (d.status === "open") {
+                monthMap[mName].open++;
+              } else {
+                monthMap[mName].resolved++;
+              }
+            }
+          }
+        });
+
+        const trend = monthNames.map((m) => ({
+          month: m,
+          open: monthMap[m].open,
+          resolved: monthMap[m].resolved,
+        }));
+
+        setMonthlyTrend(trend);
         setLoading(false);
       },
       () => {
         setDisputes([]);
+        setMonthlyTrend([]);
         setLoading(false);
       }
     );
@@ -90,7 +121,7 @@ export default function DisputeCenterPage() {
             <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold tracking-wider uppercase bg-rose-100 text-rose-800 border border-rose-200">
               Escrow Protection
             </span>
-            <span className="text-xs text-slate-500 font-mono">Platform Dispute Center</span>
+            <span className="text-xs text-slate-500 font-mono">100% Backend Live Sync</span>
           </div>
           <h1 className="text-3xl font-black text-slate-900 tracking-tight">Dispute Resolution Center</h1>
           <p className="text-slate-500 text-xs mt-1">
@@ -106,13 +137,13 @@ export default function DisputeCenterPage() {
             <h3 className="font-bold text-slate-900 text-sm flex items-center gap-2">
               <TrendingUp className="w-4 h-4 text-rose-600" /> Dispute Filing vs Adjudication Resolution Rate
             </h3>
-            <p className="text-xs text-slate-500">Monthly dispute resolution velocity</p>
+            <p className="text-xs text-slate-500">Real-time dispute timeline calculated directly from Firestore</p>
           </div>
         </div>
 
         <div className="h-56 w-full pt-2">
           <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={disputeTrendMock}>
+            <BarChart data={monthlyTrend}>
               <XAxis dataKey="month" stroke="#94a3b8" fontSize={11} tickLine={false} axisLine={false} />
               <YAxis stroke="#94a3b8" fontSize={11} tickLine={false} axisLine={false} />
               <Tooltip
