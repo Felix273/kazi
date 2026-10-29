@@ -14,6 +14,7 @@ import {
   Sparkles,
   MapPin,
   Layers,
+  Lock,
 } from "lucide-react";
 import Link from "next/link";
 import {
@@ -71,115 +72,138 @@ export default function DashboardOverview() {
   const [categoryDist, setCategoryDist] = useState<CategoryDistItem[]>([]);
   const [dailyTrend, setDailyTrend] = useState<TrendItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [permissionError, setPermissionError] = useState(false);
 
   useEffect(() => {
     // 1. Live Jobs Listener
-    const unsubJobs = onSnapshot(collection(db, "jobs"), (snapshot) => {
-      let activeCount = 0;
-      let escrowSum = 0;
-      const actList: ActivityItem[] = [];
-      const catCounts: Record<string, number> = {};
-      const dayCounts: Record<string, { jobs: number; escrow: number }> = {
-        Mon: { jobs: 0, escrow: 0 },
-        Tue: { jobs: 0, escrow: 0 },
-        Wed: { jobs: 0, escrow: 0 },
-        Thu: { jobs: 0, escrow: 0 },
-        Fri: { jobs: 0, escrow: 0 },
-        Sat: { jobs: 0, escrow: 0 },
-        Sun: { jobs: 0, escrow: 0 },
-      };
+    const unsubJobs = onSnapshot(
+      collection(db, "jobs"),
+      (snapshot) => {
+        let activeCount = 0;
+        let escrowSum = 0;
+        const actList: ActivityItem[] = [];
+        const catCounts: Record<string, number> = {};
+        const dayCounts: Record<string, { jobs: number; escrow: number }> = {
+          Mon: { jobs: 0, escrow: 0 },
+          Tue: { jobs: 0, escrow: 0 },
+          Wed: { jobs: 0, escrow: 0 },
+          Thu: { jobs: 0, escrow: 0 },
+          Fri: { jobs: 0, escrow: 0 },
+          Sat: { jobs: 0, escrow: 0 },
+          Sun: { jobs: 0, escrow: 0 },
+        };
 
-      const daysOfWeek = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+        const daysOfWeek = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
-      snapshot.docs.forEach((doc) => {
-        const data = doc.data();
-        const status = data.status || "open";
-        const budget = typeof data.budget === "number" ? data.budget : 0;
-        const cat = data.category || "General";
+        snapshot.docs.forEach((doc) => {
+          const data = doc.data();
+          const status = data.status || "open";
+          const budget = typeof data.budget === "number" ? data.budget : 0;
+          const cat = data.category || "General";
 
-        if (status === "open" || status === "in_progress") {
-          activeCount++;
-          escrowSum += budget;
-        }
-
-        // Tally category
-        catCounts[cat] = (catCounts[cat] || 0) + 1;
-
-        // Tally day trend if createdAt exists
-        if (data.createdAt) {
-          const date = data.createdAt.toDate ? data.createdAt.toDate() : new Date(data.createdAt);
-          const dayName = daysOfWeek[date.getDay()];
-          if (dayCounts[dayName]) {
-            dayCounts[dayName].jobs++;
-            dayCounts[dayName].escrow += budget;
+          if (status === "open" || status === "in_progress") {
+            activeCount++;
+            escrowSum += budget;
           }
+
+          catCounts[cat] = (catCounts[cat] || 0) + 1;
+
+          if (data.createdAt) {
+            const date = data.createdAt.toDate ? data.createdAt.toDate() : new Date(data.createdAt);
+            const dayName = daysOfWeek[date.getDay()];
+            if (dayCounts[dayName]) {
+              dayCounts[dayName].jobs++;
+              dayCounts[dayName].escrow += budget;
+            }
+          }
+
+          actList.push({
+            id: doc.id,
+            title: data.title || "Untitled Task",
+            category: cat,
+            locationName: data.locationName || "Nairobi",
+            budget,
+            createdAt: data.createdAt,
+            status,
+          });
+        });
+
+        setMetrics((prev) => ({
+          ...prev,
+          activeJobs: activeCount,
+          totalEscrow: escrowSum,
+        }));
+
+        setActivities(actList.slice(0, 5));
+
+        const totalDocs = snapshot.docs.length;
+        if (totalDocs > 0) {
+          const dist = Object.entries(catCounts).map(([name, count], index) => ({
+            name,
+            value: Math.round((count / totalDocs) * 100),
+            color: CATEGORY_COLORS[index % CATEGORY_COLORS.length],
+          }));
+          setCategoryDist(dist);
+        } else {
+          setCategoryDist([]);
         }
 
-        actList.push({
-          id: doc.id,
-          title: data.title || "Untitled Task",
-          category: cat,
-          locationName: data.locationName || "Nairobi",
-          budget,
-          createdAt: data.createdAt,
-          status,
-        });
-      });
-
-      setMetrics((prev) => ({
-        ...prev,
-        activeJobs: activeCount,
-        totalEscrow: escrowSum,
-      }));
-
-      setActivities(actList.slice(0, 5));
-
-      // Calculate category distribution percentages directly from backend docs
-      const totalDocs = snapshot.docs.length;
-      if (totalDocs > 0) {
-        const dist = Object.entries(catCounts).map(([name, count], index) => ({
-          name,
-          value: Math.round((count / totalDocs) * 100),
-          color: CATEGORY_COLORS[index % CATEGORY_COLORS.length],
+        const trendArr = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((day) => ({
+          day,
+          jobs: dayCounts[day].jobs,
+          escrow: dayCounts[day].escrow,
         }));
-        setCategoryDist(dist);
-      } else {
-        setCategoryDist([]);
+        setDailyTrend(trendArr);
+
+        setLoading(false);
+        setPermissionError(false);
+      },
+      (err) => {
+        if (err.code === "permission-denied") {
+          setPermissionError(true);
+        }
+        setLoading(false);
       }
-
-      // Format weekly trend
-      const trendArr = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((day) => ({
-        day,
-        jobs: dayCounts[day].jobs,
-        escrow: dayCounts[day].escrow,
-      }));
-      setDailyTrend(trendArr);
-
-      setLoading(false);
-    });
+    );
 
     // 2. Live Disputes Listener
-    const unsubDisputes = onSnapshot(collection(db, "disputes"), (snapshot) => {
-      let disputeCount = 0;
-      snapshot.docs.forEach((doc) => {
-        if (doc.data().status === "open") {
-          disputeCount++;
+    const unsubDisputes = onSnapshot(
+      collection(db, "disputes"),
+      (snapshot) => {
+        let disputeCount = 0;
+        snapshot.docs.forEach((doc) => {
+          if (doc.data().status === "open") {
+            disputeCount++;
+          }
+        });
+        setMetrics((prev) => ({ ...prev, openDisputes: disputeCount }));
+      },
+      (err) => {
+        if (err.code === "permission-denied") {
+          setPermissionError(true);
         }
-      });
-      setMetrics((prev) => ({ ...prev, openDisputes: disputeCount }));
-    });
+      }
+    );
 
     // 3. Live KYC Queue Listener
-    const unsubUsers = onSnapshot(collection(db, "users"), (snapshot) => {
-      let kycCount = 0;
-      snapshot.docs.forEach((doc) => {
-        const d = doc.data();
-        if (d.kycStatus === "pending" || d.kycStatus === "submitted") {
-          kycCount++;
+    const unsubUsers = onSnapshot(
+      collection(db, "users"),
+      (snapshot) => {
+        let kycCount = 0;
+        snapshot.docs.forEach((doc) => {
+          const d = doc.data();
+          if (d.kycStatus === "pending" || d.kycStatus === "submitted") {
+            kycCount++;
+          }
+        });
+        setMetrics((prev) => ({ ...prev, pendingKyc: kycCount }));
+      },
+      (err) => {
+        if (err.code === "permission-denied") {
+          setPermissionError(true);
         }
-      });
-      setMetrics((prev) => ({ ...prev, pendingKyc: kycCount }));
-    });
+      }
+    );
 
     return () => {
       unsubJobs();
@@ -190,6 +214,29 @@ export default function DashboardOverview() {
 
   return (
     <div className="space-y-8">
+      {/* Permission Denied Notice */}
+      {permissionError && (
+        <div className="p-4 bg-amber-50 border border-amber-200 rounded-2xl flex items-center justify-between text-amber-900 shadow-sm">
+          <div className="flex items-center space-x-3">
+            <div className="p-2 bg-amber-100 text-amber-800 rounded-xl">
+              <Lock className="w-5 h-5" />
+            </div>
+            <div>
+              <h4 className="font-bold text-xs uppercase tracking-wider">Authentication Required</h4>
+              <p className="text-xs text-amber-700 mt-0.5">
+                Admin permissions missing or session expired. Please log in with your Kazi Admin credentials.
+              </p>
+            </div>
+          </div>
+          <Link
+            href="/login"
+            className="px-4 py-2 bg-amber-800 text-white rounded-xl text-xs font-bold hover:bg-amber-900 transition-colors"
+          >
+            Sign In Admin
+          </Link>
+        </div>
+      )}
+
       {/* Executive Light Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-200/80 pb-6">
         <div>
