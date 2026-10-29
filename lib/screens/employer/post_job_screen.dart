@@ -7,6 +7,7 @@ import 'package:intl/intl.dart';
 
 import '../../constants/app_constants.dart';
 import '../../services/job_service.dart';
+import '../../services/pricing_calculator_service.dart';
 import '../../utils/app_theme.dart';
 import '../../utils/widget_builder.dart';
 
@@ -48,6 +49,35 @@ class _PostJobScreenState extends State<PostJobScreen> {
   List<String> get _categories => AppConstants.jobCategories;
 
   List<String> get _neighborhoods => AppConstants.nairobiNeighborhoods;
+
+  PricingRecommendation get _recommendation {
+    return PricingCalculatorService.calculateRecommendation(
+      category: _selectedCategory,
+      estimatedHours: _estimatedHours,
+      workerCount: _workerCount,
+      complexity: _complexity,
+      isUrgent: _isUrgent,
+    );
+  }
+
+  WageEvaluation get _wageEvaluation {
+    final salary = double.tryParse(_salaryController.text) ?? 0;
+    return PricingCalculatorService.evaluateWage(
+      salaryKES: salary,
+      estimatedHours: _estimatedHours,
+      workerCount: _workerCount,
+      category: _selectedCategory,
+      complexity: _complexity,
+      isUrgent: _isUrgent,
+    );
+  }
+
+  void _applyRecommendedBudget() {
+    final rec = _recommendation;
+    setState(() {
+      _salaryController.text = rec.recommendedTotalSalary.toInt().toString();
+    });
+  }
 
   @override
   void initState() {
@@ -412,6 +442,8 @@ class _PostJobScreenState extends State<PostJobScreen> {
   @override
   Widget build(BuildContext context) {
     final payment = _paymentBreakdown;
+    final recommendation = _recommendation;
+    final wageEval = _wageEvaluation;
 
     return Scaffold(
       bottomNavigationBar: _PostJobActionBar(
@@ -642,6 +674,14 @@ class _PostJobScreenState extends State<PostJobScreen> {
                             onChanged: (_) {
                               setState(() {});
                             },
+                          ),
+                          const SizedBox(height: AppSpacing.md),
+                          _SmartPricingCard(
+                            recommendation: recommendation,
+                            wageEvaluation: wageEval,
+                            salaryEntered:
+                                double.tryParse(_salaryController.text) ?? 0,
+                            onApplyRecommended: _applyRecommendedBudget,
                           ),
                           const SizedBox(height: AppSpacing.lg),
                           LayoutBuilder(
@@ -943,6 +983,124 @@ class _PostJobScreenState extends State<PostJobScreen> {
               ),
             ),
           ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SmartPricingCard extends StatelessWidget {
+  const _SmartPricingCard({
+    required this.recommendation,
+    required this.wageEvaluation,
+    required this.salaryEntered,
+    required this.onApplyRecommended,
+  });
+
+  final PricingRecommendation recommendation;
+  final WageEvaluation wageEvaluation;
+  final double salaryEntered;
+  final VoidCallback onApplyRecommended;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+
+    Color bannerColor;
+    Color onBannerColor;
+    IconData bannerIcon;
+
+    switch (wageEvaluation.status) {
+      case WageStatus.belowMarket:
+        bannerColor = scheme.errorContainer;
+        onBannerColor = scheme.onErrorContainer;
+        bannerIcon = Icons.warning_amber_rounded;
+      case WageStatus.aboveMarket:
+        bannerColor = scheme.primaryContainer;
+        onBannerColor = scheme.onPrimaryContainer;
+        bannerIcon = Icons.stars_rounded;
+      case WageStatus.fairMarket:
+        bannerColor = scheme.surfaceContainerHighest;
+        onBannerColor = scheme.onSurfaceVariant;
+        bannerIcon = Icons.check_circle_outline_rounded;
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.md),
+      decoration: BoxDecoration(
+        color: scheme.surfaceContainerLow,
+        borderRadius: BorderRadius.circular(AppRadius.md),
+        border: Border.all(color: scheme.outlineVariant),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.auto_awesome_rounded, size: 18, color: scheme.primary),
+              const SizedBox(width: AppSpacing.xs),
+              Text(
+                'Smart Pricing Guidance',
+                style: theme.textTheme.labelMedium?.copyWith(
+                  fontWeight: FontWeight.w700,
+                  color: scheme.primary,
+                ),
+              ),
+              const Spacer(),
+              Text(
+                'KES ${_formatAmount(recommendation.minSalary)} – ${_formatAmount(recommendation.maxSalary)}',
+                style: theme.textTheme.labelSmall?.copyWith(
+                  fontWeight: FontWeight.w600,
+                  color: scheme.onSurfaceVariant,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.xs),
+          Text(
+            'Recommended budget: KES ${_formatAmount(recommendation.recommendedTotalSalary)} (based on KES ${recommendation.baseHourlyRate.toStringAsFixed(0)}/hr base rate)',
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: scheme.onSurfaceVariant,
+            ),
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          OutlinedButton.icon(
+            onPressed: onApplyRecommended,
+            style: OutlinedButton.styleFrom(
+              visualDensity: VisualDensity.compact,
+              padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
+            ),
+            icon: const Icon(Icons.ads_click_rounded, size: 16),
+            label: Text(
+              'Apply KES ${_formatAmount(recommendation.recommendedTotalSalary)} Recommended',
+            ),
+          ),
+          if (salaryEntered > 0) ...[
+            const SizedBox(height: AppSpacing.sm),
+            Container(
+              padding: const EdgeInsets.all(AppSpacing.sm),
+              decoration: BoxDecoration(
+                color: bannerColor,
+                borderRadius: BorderRadius.circular(AppRadius.sm),
+              ),
+              child: Row(
+                children: [
+                  Icon(bannerIcon, size: 18, color: onBannerColor),
+                  const SizedBox(width: AppSpacing.sm),
+                  Expanded(
+                    child: Text(
+                      wageEvaluation.message,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: onBannerColor,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ],
       ),
     );
