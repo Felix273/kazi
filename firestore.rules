@@ -44,7 +44,7 @@ service cloud.firestore {
     }
 
     match /users/{userId} {
-      allow read: if signedIn();
+      allow read: if signedIn() || isAdmin();
 
       allow create: if isSelf(userId)
         && request.resource.data.role in ['employer', 'jobseeker']
@@ -95,6 +95,11 @@ service cloud.firestore {
       allow delete: if isSelf(userId);
     }
 
+    match /settings/{settingId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
     match /emailOtps/{otpId} {
       allow read, write: if false;
     }
@@ -125,12 +130,14 @@ service cloud.firestore {
     }
 
     match /jobs/{jobId} {
-      allow list: if signedIn();
-      allow get: if signedIn() && (
-        resource == null ||
-        resource.data.status == 'open' ||
-        resource.data.employerId == request.auth.uid ||
-        resource.data.hiredWorkerId == request.auth.uid
+      allow list: if signedIn() || isAdmin();
+      allow get: if isAdmin() || (
+        signedIn() && (
+          resource == null ||
+          resource.data.status == 'open' ||
+          resource.data.employerId == request.auth.uid ||
+          resource.data.hiredWorkerId == request.auth.uid
+        )
       );
 
       allow create: if isEmployer()
@@ -250,14 +257,18 @@ service cloud.firestore {
         && job(request.resource.data.jobId).employerId != request.auth.uid
         && request.resource.data.employerId == job(request.resource.data.jobId).employerId;
 
-      allow list: if signedIn() && (
-        resource.data.workerId == request.auth.uid ||
-        resource.data.employerId == request.auth.uid
+      allow list: if isAdmin() || (
+        signedIn() && (
+          resource.data.workerId == request.auth.uid ||
+          resource.data.employerId == request.auth.uid
+        )
       );
-      allow get: if signedIn() && (
-        resource == null ||
-        resource.data.workerId == request.auth.uid ||
-        resource.data.employerId == request.auth.uid
+      allow get: if isAdmin() || (
+        signedIn() && (
+          resource == null ||
+          resource.data.workerId == request.auth.uid ||
+          resource.data.employerId == request.auth.uid
+        )
       );
 
       allow update: if signedIn()
@@ -273,18 +284,18 @@ service cloud.firestore {
     }
 
     match /transactions/{transactionId} {
-      allow list: if signedIn() && resource.data.userId == request.auth.uid;
-      allow get: if signedIn() && (resource == null || resource.data.userId == request.auth.uid);
+      allow list: if isAdmin() || (signedIn() && resource.data.userId == request.auth.uid);
+      allow get: if isAdmin() || (signedIn() && (resource == null || resource.data.userId == request.auth.uid));
       allow write: if false;
     }
 
     match /wallets/{walletId} {
-      allow read: if isSelf(walletId);
+      allow read: if isSelf(walletId) || isAdmin();
       allow write: if false;
     }
 
     match /ratings/{ratingId} {
-      allow read: if signedIn();
+      allow read: if signedIn() || isAdmin();
 
       allow create: if signedIn()
         && request.resource.data.reviewerId == request.auth.uid
@@ -310,23 +321,25 @@ service cloud.firestore {
     }
 
     match /disputes/{disputeId} {
-      allow list: if signedIn() && (
-        isAdmin() ||
-        resource.data.reporterId == request.auth.uid ||
-        resource.data.reportedId == request.auth.uid
+      allow list: if isAdmin() || (
+        signedIn() && (
+          resource.data.reporterId == request.auth.uid ||
+          resource.data.reportedId == request.auth.uid
+        )
       );
-      allow get: if signedIn() && (
-        resource == null ||
-        isAdmin() ||
-        resource.data.reporterId == request.auth.uid ||
-        resource.data.reportedId == request.auth.uid
+      allow get: if isAdmin() || (
+        signedIn() && (
+          resource == null ||
+          resource.data.reporterId == request.auth.uid ||
+          resource.data.reportedId == request.auth.uid
+        )
       );
       allow write: if false;
     }
 
     match /chats/{chatId} {
-      allow list: if isChatParticipant(resource.data);
-      allow get: if signedIn() && (resource == null || isChatParticipant(resource.data));
+      allow list: if isAdmin() || isChatParticipant(resource.data);
+      allow get: if isAdmin() || (signedIn() && (resource == null || isChatParticipant(resource.data)));
 
       allow create: if signedIn()
         && isChatParticipant(request.resource.data)
@@ -352,7 +365,7 @@ service cloud.firestore {
       allow delete: if false;
 
       match /messages/{messageId} {
-        allow read: if isChatParticipant(
+        allow read: if isAdmin() || isChatParticipant(
           get(/databases/$(database)/documents/chats/$(chatId)).data
         );
 
@@ -375,14 +388,14 @@ service cloud.firestore {
     }
 
     match /checkins/{checkinId} {
-      allow list: if signedIn() && isJobParticipant(job(resource.data.jobId));
-      allow get: if signedIn() && (resource == null || isJobParticipant(job(resource.data.jobId)));
+      allow list: if isAdmin() || (signedIn() && isJobParticipant(job(resource.data.jobId)));
+      allow get: if isAdmin() || (signedIn() && (resource == null || isJobParticipant(job(resource.data.jobId))));
       allow write: if false;
     }
 
     match /notifications/{notificationId} {
-      allow list: if signedIn() && resource.data.userId == request.auth.uid;
-      allow get: if signedIn() && (resource == null || resource.data.userId == request.auth.uid);
+      allow list: if isAdmin() || (signedIn() && resource.data.userId == request.auth.uid);
+      allow get: if isAdmin() || (signedIn() && (resource == null || resource.data.userId == request.auth.uid));
       allow update: if signedIn()
         && resource.data.userId == request.auth.uid
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read']);
@@ -390,7 +403,7 @@ service cloud.firestore {
     }
 
     match /adminAlerts/{alertId} {
-      allow read, write: if false;
+      allow read, write: if isAdmin();
     }
   }
 }
