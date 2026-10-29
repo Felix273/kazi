@@ -6,6 +6,7 @@ import 'package:intl/intl.dart';
 import '../../models/job_model.dart';
 import '../../services/application_service.dart';
 import '../../services/location_service.dart';
+import '../../services/pricing_calculator_service.dart';
 import '../../utils/app_theme.dart';
 import '../../utils/widget_builder.dart';
 
@@ -62,6 +63,15 @@ class _JobDetailScreenState extends ConsumerState<JobDetailScreen> {
 
         final workerEarns = job.workerEarns;
 
+        final wageEvaluation = PricingCalculatorService.evaluateWage(
+          salaryKES: job.salaryKES,
+          estimatedHours: job.estimatedHours,
+          workerCount: job.workerCount,
+          category: job.category,
+          complexity: job.complexity,
+          isUrgent: job.isUrgent,
+        );
+
         return Scaffold(
           bottomNavigationBar: _JobApplicationBar(
             jobId: widget.jobId,
@@ -117,6 +127,20 @@ class _JobDetailScreenState extends ConsumerState<JobDetailScreen> {
                     0,
                   ),
                   child: _JobFactsCard(job: job),
+                ),
+              ),
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(
+                    AppSpacing.lg,
+                    AppSpacing.md,
+                    AppSpacing.lg,
+                    0,
+                  ),
+                  child: _WorkQuantificationCard(
+                    job: job,
+                    wageEvaluation: wageEvaluation,
+                  ),
                 ),
               ),
               SliverToBoxAdapter(
@@ -328,6 +352,162 @@ class _JobDetailScreenState extends ConsumerState<JobDetailScreen> {
         setState(() => _isApplying = false);
       }
     }
+  }
+}
+
+class _WorkQuantificationCard extends StatelessWidget {
+  const _WorkQuantificationCard({
+    required this.job,
+    required this.wageEvaluation,
+  });
+
+  final JobModel job;
+  final WageEvaluation wageEvaluation;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+
+    Color badgeBg;
+    Color badgeFg;
+    IconData badgeIcon;
+
+    switch (wageEvaluation.status) {
+      case WageStatus.belowMarket:
+        badgeBg = scheme.errorContainer;
+        badgeFg = scheme.onErrorContainer;
+        badgeIcon = Icons.warning_amber_rounded;
+      case WageStatus.aboveMarket:
+        badgeBg = scheme.primaryContainer;
+        badgeFg = scheme.onPrimaryContainer;
+        badgeIcon = Icons.stars_rounded;
+      case WageStatus.fairMarket:
+        badgeBg = scheme.secondaryContainer;
+        badgeFg = scheme.onSecondaryContainer;
+        badgeIcon = Icons.verified_rounded;
+    }
+
+    return Card(
+      margin: EdgeInsets.zero,
+      child: Padding(
+        padding: const EdgeInsets.all(AppSpacing.lg),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              children: [
+                CircleAvatar(
+                  radius: 19,
+                  backgroundColor: scheme.primaryContainer,
+                  foregroundColor: scheme.onPrimaryContainer,
+                  child: const Icon(Icons.speed_rounded, size: 19),
+                ),
+                const SizedBox(width: AppSpacing.sm),
+                Text(
+                  'Work Effort & Rate Assessment',
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: AppSpacing.md),
+            Container(
+              padding: const EdgeInsets.all(AppSpacing.md),
+              decoration: BoxDecoration(
+                color: badgeBg.withValues(alpha: 0.6),
+                borderRadius: BorderRadius.circular(AppRadius.md),
+              ),
+              child: Row(
+                children: [
+                  Icon(badgeIcon, color: badgeFg, size: 20),
+                  const SizedBox(width: AppSpacing.sm),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          wageEvaluation.label,
+                          style: theme.textTheme.titleSmall?.copyWith(
+                            color: badgeFg,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        Text(
+                          'KES ${wageEvaluation.effectiveHourlyRatePerWorker.toStringAsFixed(0)} / hr per worker',
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: badgeFg,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: AppSpacing.md),
+            Row(
+              children: [
+                _WorkMetricChip(
+                  icon: Icons.schedule_rounded,
+                  label: '${job.estimatedHours} hrs est.',
+                ),
+                const SizedBox(width: AppSpacing.xs),
+                _WorkMetricChip(
+                  icon: Icons.group_outlined,
+                  label: '${job.workerCount} worker${job.workerCount == 1 ? '' : 's'}',
+                ),
+                const SizedBox(width: AppSpacing.xs),
+                _WorkMetricChip(
+                  icon: Icons.tune_rounded,
+                  label: job.complexity.toUpperCase(),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _WorkMetricChip extends StatelessWidget {
+  const _WorkMetricChip({required this.icon, required this.label});
+
+  final IconData icon;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.sm,
+        vertical: AppSpacing.xs,
+      ),
+      decoration: BoxDecoration(
+        color: scheme.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(AppRadius.pill),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 14, color: scheme.onSurfaceVariant),
+          const SizedBox(width: AppSpacing.xxs),
+          Text(
+            label,
+            style: theme.textTheme.labelSmall?.copyWith(
+              color: scheme.onSurfaceVariant,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
 
