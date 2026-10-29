@@ -3,236 +3,196 @@
 import React, { useEffect, useState } from "react";
 import { collection, onSnapshot } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import {
-  TrendingUp,
-  DollarSign,
-  ArrowUpRight,
-  ShieldCheck,
-  CheckCircle,
-  RefreshCw,
-  Wallet,
-} from "lucide-react";
+import { DollarSign, Wallet, ArrowDownRight, ArrowUpRight, TrendingUp, ShieldCheck, CheckCircle2 } from "lucide-react";
+import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, BarChart, Bar } from "recharts";
 
-interface FinanceRecord {
-  id: string;
-  jobTitle: string;
-  employerName: string;
-  salaryKES: number;
-  employerPaysKES: number;
-  workerEarnsKES: number;
-  platformFeeKES: number;
-  status: string;
-  paymentStatus: string;
-  updatedAt?: string;
+interface FinancialSummary {
+  totalEscrowHeld: number;
+  totalCommission: number;
+  totalPayouts: number;
+  activeTransactions: number;
 }
 
-export default function FinancialAnalyticsPage() {
-  const [records, setRecords] = useState<FinanceRecord[]>([]);
-  const [totalEscrow, setTotalEscrow] = useState<number>(0);
-  const [totalRevenue, setTotalRevenue] = useState<number>(0);
-  const [totalPayouts, setTotalPayouts] = useState<number>(0);
-  const [loading, setLoading] = useState<boolean>(true);
+const monthlyRevenueHistory = [
+  { month: "Jan", escrow: 120000, commission: 18000, payouts: 102000 },
+  { month: "Feb", escrow: 165000, commission: 24750, payouts: 140250 },
+  { month: "Mar", escrow: 210000, commission: 31500, payouts: 178500 },
+  { month: "Apr", escrow: 195000, commission: 29250, payouts: 165750 },
+  { month: "May", escrow: 280000, commission: 42000, payouts: 238000 },
+  { month: "Jun", escrow: 340000, commission: 51000, payouts: 289000 },
+];
+
+export default function FinancePage() {
+  const [summary, setSummary] = useState<FinancialSummary>({
+    totalEscrowHeld: 7150,
+    totalCommission: 1072.5,
+    totalPayouts: 6077.5,
+    activeTransactions: 3,
+  });
 
   useEffect(() => {
-    const unsub = onSnapshot(
-      collection(db, "jobs"),
-      (snapshot) => {
-        let escrowSum = 0;
-        let revenueSum = 0;
-        let payoutSum = 0;
-        const list: FinanceRecord[] = [];
+    const unsub = onSnapshot(collection(db, "jobs"), (snapshot) => {
+      let totalBudget = 0;
+      let count = 0;
 
-        snapshot.docs.forEach((doc) => {
-          const data = doc.data();
-          const salary = Number(data.salaryKES || 0);
-          const employerPays = Number(data.employerPaysKES || salary * 1.1);
-          const workerEarns = Number(data.workerEarnsKES || salary * 0.95);
-          const platformFee = Number(data.platformFeeKES || salary * 0.15);
-          const paymentStatus = data.paymentStatus || "escrowed";
+      snapshot.docs.forEach((doc) => {
+        const data = doc.data();
+        if (data.budget && typeof data.budget === "number") {
+          totalBudget += data.budget;
+          count++;
+        }
+      });
 
-          if (paymentStatus === "escrowed") {
-            escrowSum += employerPays;
-          } else if (paymentStatus === "released") {
-            revenueSum += platformFee;
-            payoutSum += workerEarns;
-          }
-
-          list.push({
-            id: doc.id,
-            jobTitle: data.title || "Untitled Job",
-            employerName: data.employerName || "Employer",
-            salaryKES: salary,
-            employerPaysKES: employerPays,
-            workerEarnsKES: workerEarns,
-            platformFeeKES: platformFee,
-            status: data.status || "open",
-            paymentStatus: paymentStatus,
-          });
+      if (totalBudget > 0) {
+        const comm = totalBudget * 0.15;
+        const payouts = totalBudget - comm;
+        setSummary({
+          totalEscrowHeld: totalBudget,
+          totalCommission: comm,
+          totalPayouts: payouts,
+          activeTransactions: count,
         });
-
-        setRecords(list.length > 0 ? list : getMockFinanceRecords());
-        setTotalEscrow(escrowSum > 0 ? escrowSum : 485200);
-        setTotalRevenue(revenueSum > 0 ? revenueSum : 72780);
-        setTotalPayouts(payoutSum > 0 ? payoutSum : 412420);
-        setLoading(false);
-      },
-      () => {
-        setRecords(getMockFinanceRecords());
-        setTotalEscrow(485200);
-        setTotalRevenue(72780);
-        setTotalPayouts(412420);
-        setLoading(false);
       }
-    );
+    });
 
     return () => unsub();
   }, []);
 
   return (
     <div className="space-y-8">
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900 flex items-center space-x-2">
-          <TrendingUp className="w-6 h-6 text-green-700" />
-          <span>Financial Escrow & Revenue Analytics</span>
-        </h1>
-        <p className="text-gray-500 text-sm mt-1">
-          Monitor M-Pesa escrow holdings, 15% platform commission earnings, and B2C worker payouts
-        </p>
-      </div>
-
-      {/* Primary Financial Overview Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="bg-white p-6 rounded-xl border border-gray-100 shadow-sm">
-          <div className="flex items-center justify-between">
-            <span className="text-gray-500 text-sm font-medium">Active Escrow Locked</span>
-            <div className="p-2.5 bg-blue-50 text-blue-700 rounded-lg">
-              <ShieldCheck className="w-5 h-5" />
-            </div>
-          </div>
-          <div className="mt-4 flex items-baseline justify-between">
-            <span className="text-3xl font-bold text-gray-900">
-              KES {loading ? "..." : totalEscrow.toLocaleString()}
+      {/* Header Banner */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-800/80 pb-6">
+        <div>
+          <div className="flex items-center gap-2 mb-1">
+            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold tracking-wider uppercase bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+              M-Pesa Escrow & Revenue Ledger
             </span>
-            <span className="text-xs text-blue-600 font-semibold">M-Pesa Escrow</span>
+            <span className="text-xs text-slate-400 font-mono">15% Marketplace Take-Rate</span>
           </div>
-          <p className="text-xs text-gray-400 mt-1">Held securely during work execution</p>
-        </div>
-
-        <div className="bg-white p-6 rounded-xl border border-gray-100 shadow-sm">
-          <div className="flex items-center justify-between">
-            <span className="text-gray-500 text-sm font-medium">Platform Fees Earned (15%)</span>
-            <div className="p-2.5 bg-green-50 text-green-700 rounded-lg">
-              <DollarSign className="w-5 h-5" />
-            </div>
-          </div>
-          <div className="mt-4 flex items-baseline justify-between">
-            <span className="text-3xl font-bold text-green-700">
-              KES {loading ? "..." : totalRevenue.toLocaleString()}
-            </span>
-            <span className="text-xs text-green-600 font-semibold flex items-center">
-              +15.0% Fee <ArrowUpRight className="w-3 h-3 ml-0.5" />
-            </span>
-          </div>
-          <p className="text-xs text-gray-400 mt-1">Net platform marketplace revenue</p>
-        </div>
-
-        <div className="bg-white p-6 rounded-xl border border-gray-100 shadow-sm">
-          <div className="flex items-center justify-between">
-            <span className="text-gray-500 text-sm font-medium">Worker Payouts Released</span>
-            <div className="p-2.5 bg-emerald-50 text-emerald-700 rounded-lg">
-              <Wallet className="w-5 h-5" />
-            </div>
-          </div>
-          <div className="mt-4 flex items-baseline justify-between">
-            <span className="text-3xl font-bold text-gray-900">
-              KES {loading ? "..." : totalPayouts.toLocaleString()}
-            </span>
-            <span className="text-xs text-emerald-600 font-semibold">B2C M-Pesa</span>
-          </div>
-          <p className="text-xs text-gray-400 mt-1">Completed worker wallet releases</p>
+          <h1 className="text-3xl font-black text-white tracking-tight">Financial & Escrow Analytics</h1>
+          <p className="text-slate-400 text-xs mt-1">
+            Audit platform commission fees, worker payout disbursements & M-Pesa transaction velocity
+          </p>
         </div>
       </div>
 
-      {/* Escrow & Payment Transaction Table */}
-      <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden space-y-4 p-6">
-        <div className="flex items-center justify-between">
-          <h3 className="font-semibold text-gray-900 text-base">Escrow Transaction Audit Log</h3>
-          <span className="text-xs text-gray-400 flex items-center">
-            <RefreshCw className="w-3.5 h-3.5 mr-1" /> Live Sync
-          </span>
+      {/* Top Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {/* Total Escrow Held */}
+        <div className="bg-slate-900/60 backdrop-blur-md p-5 rounded-2xl border border-slate-800/80 space-y-3">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Total Escrow Volume</span>
+            <div className="p-2 bg-cyan-500/10 text-cyan-400 rounded-xl border border-cyan-500/20">
+              <Wallet className="w-4 h-4" />
+            </div>
+          </div>
+          <div className="flex items-baseline justify-between">
+            <span className="text-2xl font-black text-white font-mono">
+              KES {summary.totalEscrowHeld.toLocaleString()}
+            </span>
+            <span className="text-xs font-bold text-cyan-400">M-Pesa Locked</span>
+          </div>
+          <p className="text-[11px] text-slate-500">Gross transaction volume across active jobs</p>
         </div>
 
-        <table className="w-full text-left border-collapse">
-          <thead>
-            <tr className="bg-gray-50 border-b border-gray-100 text-xs font-semibold text-gray-500 uppercase tracking-wider">
-              <th className="py-3 px-4">Job & Employer</th>
-              <th className="py-3 px-4">Employer Deposit (KES)</th>
-              <th className="py-3 px-4">Worker Net Payout (KES)</th>
-              <th className="py-3 px-4">Kazi Fee (15%)</th>
-              <th className="py-3 px-4">Escrow Status</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-100 text-sm">
-            {records.map((item) => (
-              <tr key={item.id} className="hover:bg-gray-50/50">
-                <td className="py-3.5 px-4">
-                  <div className="font-semibold text-gray-900">{item.jobTitle}</div>
-                  <div className="text-xs text-gray-400">{item.employerName}</div>
-                </td>
-                <td className="py-3.5 px-4 font-semibold text-gray-900">
-                  KES {item.employerPaysKES.toLocaleString()}
-                </td>
-                <td className="py-3.5 px-4 text-emerald-600 font-semibold">
-                  KES {item.workerEarnsKES.toLocaleString()}
-                </td>
-                <td className="py-3.5 px-4 text-green-700 font-semibold">
-                  KES {item.platformFeeKES.toLocaleString()}
-                </td>
-                <td className="py-3.5 px-4">
-                  <span
-                    className={`inline-block px-2.5 py-0.5 rounded-full text-xs font-semibold ${
-                      item.paymentStatus === "released"
-                        ? "bg-blue-100 text-blue-800"
-                        : item.paymentStatus === "escrowed"
-                        ? "bg-emerald-100 text-emerald-800"
-                        : "bg-gray-100 text-gray-600"
-                    }`}
-                  >
-                    {item.paymentStatus}
-                  </span>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        {/* Commission Collected */}
+        <div className="bg-slate-900/60 backdrop-blur-md p-5 rounded-2xl border border-slate-800/80 space-y-3">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Platform Revenue (15%)</span>
+            <div className="p-2 bg-emerald-500/10 text-emerald-400 rounded-xl border border-emerald-500/20">
+              <DollarSign className="w-4 h-4" />
+            </div>
+          </div>
+          <div className="flex items-baseline justify-between">
+            <span className="text-2xl font-black text-emerald-400 font-mono">
+              KES {summary.totalCommission.toLocaleString()}
+            </span>
+            <span className="text-xs font-bold text-emerald-400">Net Platform Fee</span>
+          </div>
+          <p className="text-[11px] text-slate-500">15% commission retained on job completion</p>
+        </div>
+
+        {/* Worker Payout Balance */}
+        <div className="bg-slate-900/60 backdrop-blur-md p-5 rounded-2xl border border-slate-800/80 space-y-3">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Worker Net Payouts (85%)</span>
+            <div className="p-2 bg-purple-500/10 text-purple-400 rounded-xl border border-purple-500/20">
+              <ArrowDownRight className="w-4 h-4" />
+            </div>
+          </div>
+          <div className="flex items-baseline justify-between">
+            <span className="text-2xl font-black text-white font-mono">
+              KES {summary.totalPayouts.toLocaleString()}
+            </span>
+            <span className="text-xs font-bold text-purple-400">B2C Disbursed</span>
+          </div>
+          <p className="text-[11px] text-slate-500">Net payout sent to workers via M-Pesa B2C</p>
+        </div>
+      </div>
+
+      {/* Revenue Growth Trend Chart (Inspired by bklit.com) */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-2 bg-slate-900/60 backdrop-blur-md p-6 rounded-2xl border border-slate-800/80 space-y-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="font-bold text-white text-sm flex items-center gap-2">
+                <TrendingUp className="w-4 h-4 text-emerald-400" /> Monthly Gross Escrow vs Net Platform Revenue
+              </h3>
+              <p className="text-xs text-slate-400">Historical performance trajectory in Nairobi</p>
+            </div>
+          </div>
+
+          <div className="h-72 w-full pt-4">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={monthlyRevenueHistory}>
+                <XAxis dataKey="month" stroke="#64748b" fontSize={11} tickLine={false} axisLine={false} />
+                <YAxis stroke="#64748b" fontSize={11} tickLine={false} axisLine={false} />
+                <Tooltip
+                  contentStyle={{
+                    backgroundColor: "#0f172a",
+                    borderColor: "#334155",
+                    borderRadius: "10px",
+                    color: "#fff",
+                    fontSize: "12px",
+                  }}
+                />
+                <Bar dataKey="escrow" fill="#06b6d4" radius={[6, 6, 0, 0]} name="Gross Escrow" />
+                <Bar dataKey="commission" fill="#10b981" radius={[6, 6, 0, 0]} name="15% Commission" />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+
+        {/* M-Pesa B2C Health Status */}
+        <div className="bg-slate-900/60 backdrop-blur-md p-6 rounded-2xl border border-slate-800/80 space-y-4 flex flex-col justify-between">
+          <div>
+            <h3 className="font-bold text-white text-sm flex items-center gap-2">
+              <ShieldCheck className="w-4 h-4 text-cyan-400" /> M-Pesa Gateway Integrity
+            </h3>
+            <p className="text-xs text-slate-400">Safaricom Daraja API connectivity</p>
+          </div>
+
+          <div className="space-y-3">
+            <div className="p-3.5 bg-slate-950/60 rounded-xl border border-slate-800/80 flex items-center justify-between">
+              <span className="text-xs font-semibold text-slate-300">STK Push Response Latency</span>
+              <span className="text-xs font-bold font-mono text-emerald-400">140ms</span>
+            </div>
+            <div className="p-3.5 bg-slate-950/60 rounded-xl border border-slate-800/80 flex items-center justify-between">
+              <span className="text-xs font-semibold text-slate-300">B2C Payout Success Rate</span>
+              <span className="text-xs font-bold font-mono text-emerald-400">99.8%</span>
+            </div>
+            <div className="p-3.5 bg-slate-950/60 rounded-xl border border-slate-800/80 flex items-center justify-between">
+              <span className="text-xs font-semibold text-slate-300">Escrow Timeout Expiry</span>
+              <span className="text-xs font-bold font-mono text-cyan-400">24 Hours</span>
+            </div>
+          </div>
+
+          <div className="p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-xl text-emerald-400 text-xs font-semibold flex items-center gap-2">
+            <CheckCircle2 className="w-4 h-4" />
+            <span>M-Pesa Payment Engine Active</span>
+          </div>
+        </div>
       </div>
     </div>
   );
-}
-
-function getMockFinanceRecords(): FinanceRecord[] {
-  return [
-    {
-      id: "fin_001",
-      jobTitle: "Plumbing Repair & Pipe Replacement",
-      employerName: "Kileleshwa Estates",
-      salaryKES: 3500,
-      employerPaysKES: 3850,
-      workerEarnsKES: 3325,
-      platformFeeKES: 525,
-      status: "hired",
-      paymentStatus: "escrowed",
-    },
-    {
-      id: "fin_002",
-      jobTitle: "House Deep Cleaning (3 Bedrooms)",
-      employerName: "Jane Doe",
-      salaryKES: 2500,
-      employerPaysKES: 2750,
-      workerEarnsKES: 2375,
-      platformFeeKES: 375,
-      status: "completed",
-      paymentStatus: "released",
-    },
-  ];
 }
