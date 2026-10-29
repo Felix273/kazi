@@ -4,7 +4,7 @@ import React, { useEffect, useState } from "react";
 import { collection, onSnapshot, query, orderBy } from "firebase/firestore";
 import { httpsCallable } from "firebase/functions";
 import { db, functions } from "@/lib/firebase";
-import { AlertTriangle, ShieldCheck, CheckCircle2, TrendingUp } from "lucide-react";
+import { AlertTriangle, CheckCircle2, TrendingUp } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
 
 interface DisputeItem {
@@ -84,48 +84,49 @@ export default function DisputeCenterPage() {
   return (
     <div className="space-y-8">
       {/* Header Banner */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-800/80 pb-6">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-200/80 pb-6">
         <div>
           <div className="flex items-center gap-2 mb-1">
-            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold tracking-wider uppercase bg-rose-500/10 text-rose-400 border border-rose-500/20">
+            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold tracking-wider uppercase bg-rose-100 text-rose-800 border border-rose-200">
               Escrow Protection
             </span>
-            <span className="text-xs text-slate-400 font-mono">Platform Dispute Center</span>
+            <span className="text-xs text-slate-500 font-mono">Platform Dispute Center</span>
           </div>
-          <h1 className="text-3xl font-black text-white tracking-tight">Dispute Resolution Center</h1>
-          <p className="text-slate-400 text-xs mt-1">
+          <h1 className="text-3xl font-black text-slate-900 tracking-tight">Dispute Resolution Center</h1>
+          <p className="text-slate-500 text-xs mt-1">
             Review filed grievances, inspect frozen M-Pesa escrow payments & adjudicate resolutions
           </p>
         </div>
       </div>
 
       {/* Resolution Velocity Chart */}
-      <div className="bg-slate-900/60 backdrop-blur-md p-6 rounded-2xl border border-slate-800/80 space-y-4">
-        <div className="flex items-center justify-between">
+      <div className="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-sm shadow-slate-100 space-y-4">
+        <div className="flex items-center justify-between border-b border-slate-100 pb-4">
           <div>
-            <h3 className="font-bold text-white text-sm flex items-center gap-2">
-              <TrendingUp className="w-4 h-4 text-rose-400" /> Dispute Filing vs Adjudication Resolution Rate
+            <h3 className="font-bold text-slate-900 text-sm flex items-center gap-2">
+              <TrendingUp className="w-4 h-4 text-rose-600" /> Dispute Filing vs Adjudication Resolution Rate
             </h3>
-            <p className="text-xs text-slate-400">Monthly dispute resolution velocity</p>
+            <p className="text-xs text-slate-500">Monthly dispute resolution velocity</p>
           </div>
         </div>
 
-        <div className="h-56 w-full pt-4">
+        <div className="h-56 w-full pt-2">
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={disputeTrendMock}>
-              <XAxis dataKey="month" stroke="#64748b" fontSize={11} tickLine={false} axisLine={false} />
-              <YAxis stroke="#64748b" fontSize={11} tickLine={false} axisLine={false} />
+              <XAxis dataKey="month" stroke="#94a3b8" fontSize={11} tickLine={false} axisLine={false} />
+              <YAxis stroke="#94a3b8" fontSize={11} tickLine={false} axisLine={false} />
               <Tooltip
                 contentStyle={{
-                  backgroundColor: "#0f172a",
-                  borderColor: "#334155",
+                  backgroundColor: "#ffffff",
+                  borderColor: "#e2e8f0",
                   borderRadius: "10px",
-                  color: "#fff",
+                  color: "#0f172a",
                   fontSize: "12px",
+                  fontWeight: "600",
                 }}
               />
-              <Bar dataKey="resolved" fill="#10b981" radius={[6, 6, 0, 0]} name="Resolved Disputes" />
-              <Bar dataKey="open" fill="#f43f5e" radius={[6, 6, 0, 0]} name="Open Grievances" />
+              <Bar dataKey="resolved" fill="#059669" radius={[6, 6, 0, 0]} name="Resolved Disputes" />
+              <Bar dataKey="open" fill="#e11d48" radius={[6, 6, 0, 0]} name="Open Grievances" />
             </BarChart>
           </ResponsiveContainer>
         </div>
@@ -134,28 +135,28 @@ export default function DisputeCenterPage() {
       {/* Disputes Queue */}
       <div className="space-y-4">
         {loading ? (
-          <div className="p-12 text-center text-slate-500 bg-slate-900/60 rounded-2xl border border-slate-800/80 text-xs">
+          <div className="p-12 text-center text-slate-400 bg-white rounded-2xl border border-slate-200/80 text-xs">
             Loading dispute queue...
           </div>
         ) : disputes.length === 0 ? (
-          <div className="p-12 text-center text-slate-400 bg-slate-900/60 rounded-2xl border border-slate-800/80 text-xs space-y-2">
-            <CheckCircle2 className="w-8 h-8 text-emerald-400 mx-auto" />
-            <p className="font-bold text-white text-sm">Zero Open Disputes</p>
+          <div className="p-12 text-center text-slate-500 bg-white rounded-2xl border border-slate-200/80 text-xs space-y-2 shadow-sm">
+            <CheckCircle2 className="w-8 h-8 text-emerald-600 mx-auto" />
+            <p className="font-bold text-slate-900 text-sm">Zero Open Disputes</p>
             <p className="text-slate-500 text-xs">All M-Pesa escrows and worker jobs are operating cleanly!</p>
           </div>
         ) : (
           disputes.map((dispute) => (
             <div
               key={dispute.id}
-              className="bg-slate-900/60 backdrop-blur-md p-6 rounded-2xl border border-slate-800/80 space-y-4 shadow-lg"
+              className="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-sm shadow-slate-100 space-y-4"
             >
-              <div className="flex items-center justify-between border-b border-slate-800/80 pb-4">
+              <div className="flex items-center justify-between border-b border-slate-100 pb-4">
                 <div className="flex items-center space-x-3">
-                  <div className="p-2.5 bg-rose-500/10 text-rose-400 rounded-xl border border-rose-500/20">
+                  <div className="p-2.5 bg-rose-50 text-rose-700 rounded-xl border border-rose-100">
                     <AlertTriangle className="w-5 h-5" />
                   </div>
                   <div>
-                    <h3 className="font-bold text-white text-sm">
+                    <h3 className="font-bold text-slate-900 text-sm">
                       {dispute.reasonLabel || dispute.reason || "Job Dispute"}
                     </h3>
                     <p className="text-xs text-slate-400 font-mono">
@@ -165,26 +166,26 @@ export default function DisputeCenterPage() {
                 </div>
 
                 <span
-                  className={`px-3 py-1 rounded-full text-xs font-semibold capitalize border ${
+                  className={`px-3 py-1 rounded-full text-xs font-bold capitalize border ${
                     dispute.status === "open"
-                      ? "bg-rose-500/10 text-rose-400 border-rose-500/20"
-                      : "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
+                      ? "bg-rose-50 text-rose-800 border-rose-200"
+                      : "bg-emerald-50 text-emerald-800 border-emerald-200"
                   }`}
                 >
                   {dispute.status || "open"}
                 </span>
               </div>
 
-              <div className="bg-slate-950/60 p-4 rounded-xl text-xs text-slate-300 border border-slate-800/80">
-                <p className="font-bold text-slate-400 uppercase text-[10px] tracking-wider mb-1">
+              <div className="bg-slate-50 p-4 rounded-xl text-xs text-slate-700 border border-slate-200/60">
+                <p className="font-bold text-slate-500 uppercase text-[10px] tracking-wider mb-1">
                   Filing Description:
                 </p>
                 {dispute.description || "No description provided."}
               </div>
 
               {dispute.status === "open" ? (
-                <div className="border-t border-slate-800/80 pt-4 space-y-3">
-                  <h4 className="text-xs font-bold text-white uppercase tracking-wider">
+                <div className="border-t border-slate-100 pt-4 space-y-3">
+                  <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider">
                     Admin Adjudication Panel
                   </h4>
                   <textarea
@@ -192,16 +193,16 @@ export default function DisputeCenterPage() {
                     placeholder="Enter official resolution decision and details..."
                     value={resolutionNote}
                     onChange={(e) => setResolutionNote(e.target.value)}
-                    className="w-full p-3 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:border-emerald-500 transition-colors"
+                    className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:border-emerald-600 focus:bg-white transition-all"
                   />
 
                   <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
-                    <label className="flex items-center space-x-2 text-xs font-medium text-slate-300 cursor-pointer">
+                    <label className="flex items-center space-x-2 text-xs font-semibold text-slate-700 cursor-pointer">
                       <input
                         type="checkbox"
                         checked={releasePayment}
                         onChange={(e) => setReleasePayment(e.target.checked)}
-                        className="rounded border-slate-700 bg-slate-950 text-emerald-500 focus:ring-emerald-500"
+                        className="rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
                       />
                       <span>Release escrowed funds to worker upon resolution</span>
                     </label>
@@ -209,15 +210,15 @@ export default function DisputeCenterPage() {
                     <button
                       disabled={resolvingId === dispute.id}
                       onClick={() => handleResolveDispute(dispute.id)}
-                      className="px-5 py-2.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold rounded-xl text-xs transition-all shadow-lg shadow-emerald-500/20 disabled:opacity-50"
+                      className="px-5 py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-xl text-xs transition-all shadow-md shadow-slate-900/10 disabled:opacity-50"
                     >
                       {resolvingId === dispute.id ? "Resolving..." : "Finalize & Resolve Dispute"}
                     </button>
                   </div>
                 </div>
               ) : (
-                <div className="flex items-center space-x-2 text-xs text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 p-3 rounded-xl">
-                  <CheckCircle2 className="w-4 h-4" />
+                <div className="flex items-center space-x-2 text-xs text-emerald-800 bg-emerald-50 border border-emerald-200 p-3 rounded-xl font-medium">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600" />
                   <span>Resolved: {dispute.resolution || "Case adjudicated and closed."}</span>
                 </div>
               )}
