@@ -2,8 +2,9 @@
 
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
-import { collection, onSnapshot, query, orderBy, limit } from "firebase/firestore";
+import { collection, onSnapshot } from "firebase/firestore";
 import { db } from "@/lib/firebase";
+import { useAuth } from "@/context/AuthContext";
 import {
   Briefcase,
   Users,
@@ -16,6 +17,8 @@ import {
   Activity,
   Clock,
   Zap,
+  LogIn,
+  Lock,
 } from "lucide-react";
 
 interface ActivityItem {
@@ -28,18 +31,21 @@ interface ActivityItem {
 }
 
 export default function DashboardOverview() {
+  const { user } = useAuth();
   const [activeJobsCount, setActiveJobsCount] = useState<number>(0);
   const [pendingKycCount, setPendingKycCount] = useState<number>(0);
   const [openDisputesCount, setOpenDisputesCount] = useState<number>(0);
   const [totalEscrowVolume, setTotalEscrowVolume] = useState<number>(0);
   const [recentActivities, setRecentActivities] = useState<ActivityItem[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
+  const [authError, setAuthError] = useState<boolean>(false);
 
   useEffect(() => {
+    setAuthError(false);
+
     // 1. Listen to jobs collection
-    const jobsQuery = collection(db, "jobs");
     const unsubJobs = onSnapshot(
-      jobsQuery,
+      collection(db, "jobs"),
       (snapshot) => {
         let activeCount = 0;
         let escrowSum = 0;
@@ -55,7 +61,6 @@ export default function DashboardOverview() {
             escrowSum += Number(data.employerPaysKES || data.salaryKES || 0);
           }
 
-          // Build activity item from recent job
           activities.push({
             id: doc.id,
             type: status === "hired" ? "job_hired" : "job_posted",
@@ -68,26 +73,19 @@ export default function DashboardOverview() {
 
         setActiveJobsCount(activeCount);
         setTotalEscrowVolume(escrowSum);
-        if (activities.length > 0) {
-          setRecentActivities(activities.slice(0, 6));
-        } else {
-          setRecentActivities(getMockActivities());
-        }
+        setRecentActivities(activities.slice(0, 6));
         setLoading(false);
       },
-      () => {
-        // Fallback for offline or empty state
-        setActiveJobsCount(142);
-        setTotalEscrowVolume(485200);
-        setRecentActivities(getMockActivities());
+      (err) => {
+        // If not signed in or permission denied
+        setAuthError(true);
         setLoading(false);
       }
     );
 
-    // 2. Listen to users collection for pending KYC
-    const usersQuery = collection(db, "users");
+    // 2. Listen to users collection
     const unsubUsers = onSnapshot(
-      usersQuery,
+      collection(db, "users"),
       (snapshot) => {
         let pendingCount = 0;
         snapshot.docs.forEach((doc) => {
@@ -98,15 +96,12 @@ export default function DashboardOverview() {
         });
         setPendingKycCount(pendingCount);
       },
-      () => {
-        setPendingKycCount(18);
-      }
+      () => {}
     );
 
     // 3. Listen to disputes collection
-    const disputesQuery = collection(db, "disputes");
     const unsubDisputes = onSnapshot(
-      disputesQuery,
+      collection(db, "disputes"),
       (snapshot) => {
         let disputeCount = 0;
         snapshot.docs.forEach((doc) => {
@@ -117,9 +112,7 @@ export default function DashboardOverview() {
         });
         setOpenDisputesCount(disputeCount);
       },
-      () => {
-        setOpenDisputesCount(3);
-      }
+      () => {}
     );
 
     return () => {
@@ -127,7 +120,7 @@ export default function DashboardOverview() {
       unsubUsers();
       unsubDisputes();
     };
-  }, []);
+  }, [user]);
 
   return (
     <div className="space-y-8">
@@ -136,6 +129,28 @@ export default function DashboardOverview() {
         <h1 className="text-2xl font-bold text-gray-900">Dashboard Overview</h1>
         <p className="text-gray-500 text-sm mt-1">Real-time marketplace activity & live metrics across Nairobi</p>
       </div>
+
+      {/* Auth Banner if not signed in */}
+      {!user && (
+        <div className="bg-amber-50 border border-amber-200 p-4 rounded-xl flex items-center justify-between">
+          <div className="flex items-center space-x-3 text-amber-900">
+            <Lock className="w-5 h-5 text-amber-700" />
+            <div>
+              <p className="font-semibold text-sm">Authentication Required for Live Data</p>
+              <p className="text-xs text-amber-700 mt-0.5">
+                Firestore security rules require logging in to stream live database records.
+              </p>
+            </div>
+          </div>
+          <Link
+            href="/login"
+            className="inline-flex items-center space-x-1 px-4 py-2 bg-amber-700 text-white text-xs font-semibold rounded-lg hover:bg-amber-800 transition-colors"
+          >
+            <LogIn className="w-3.5 h-3.5" />
+            <span>Sign In to Admin</span>
+          </Link>
+        </div>
+      )}
 
       {/* Primary Metrics Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -220,23 +235,29 @@ export default function DashboardOverview() {
             </span>
           </div>
 
-          <div className="divide-y divide-gray-100 text-sm">
-            {recentActivities.map((act) => (
-              <div key={act.id} className="py-3.5 flex items-center justify-between hover:bg-gray-50/50 px-2 rounded-lg transition-colors">
-                <div className="space-y-0.5">
-                  <div className="font-semibold text-gray-900 flex items-center space-x-2">
-                    <span>{act.title}</span>
+          {recentActivities.length === 0 ? (
+            <div className="p-8 text-center text-gray-400 text-sm">
+              {user ? "No job activity recorded in Firestore yet." : "Please sign in to view live activity."}
+            </div>
+          ) : (
+            <div className="divide-y divide-gray-100 text-sm">
+              {recentActivities.map((act) => (
+                <div key={act.id} className="py-3.5 flex items-center justify-between hover:bg-gray-50/50 px-2 rounded-lg transition-colors">
+                  <div className="space-y-0.5">
+                    <div className="font-semibold text-gray-900 flex items-center space-x-2">
+                      <span>{act.title}</span>
+                    </div>
+                    <div className="text-xs text-gray-500 flex items-center">
+                      <MapPin className="w-3 h-3 mr-1 text-gray-400" /> {act.subtitle}
+                    </div>
                   </div>
-                  <div className="text-xs text-gray-500 flex items-center">
-                    <MapPin className="w-3 h-3 mr-1 text-gray-400" /> {act.subtitle}
-                  </div>
+                  <span className={`px-2.5 py-0.5 rounded-full text-xs font-semibold ${act.badgeColor}`}>
+                    {act.timestamp}
+                  </span>
                 </div>
-                <span className={`px-2.5 py-0.5 rounded-full text-xs font-semibold ${act.badgeColor}`}>
-                  {act.timestamp}
-                </span>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Quick Action Navigation */}
@@ -309,41 +330,4 @@ export default function DashboardOverview() {
       </div>
     </div>
   );
-}
-
-function getMockActivities(): ActivityItem[] {
-  return [
-    {
-      id: "act_1",
-      type: "job_posted",
-      title: "Deep House Cleaning (3 Bedrooms)",
-      subtitle: "Cleaning in Westlands • KES 2,500",
-      timestamp: "2 mins ago",
-      badgeColor: "bg-green-100 text-green-800",
-    },
-    {
-      id: "act_2",
-      type: "job_hired",
-      title: "Plumbing Repair & Pipe Replacement",
-      subtitle: "Plumbing in Kileleshwa • KES 3,500 (Escrow Locked)",
-      timestamp: "8 mins ago",
-      badgeColor: "bg-blue-100 text-blue-800",
-    },
-    {
-      id: "act_3",
-      type: "checkin",
-      title: "GPS Check-In Verified",
-      subtitle: "Worker checked in at Karen job location",
-      timestamp: "15 mins ago",
-      badgeColor: "bg-purple-100 text-purple-800",
-    },
-    {
-      id: "act_4",
-      type: "job_posted",
-      title: "Electrical Outlet Fixing & Rewiring",
-      subtitle: "Electrical in Kilimani • KES 4,000",
-      timestamp: "24 mins ago",
-      badgeColor: "bg-green-100 text-green-800",
-    },
-  ];
 }
