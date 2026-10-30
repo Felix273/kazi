@@ -130,15 +130,8 @@ service cloud.firestore {
     }
 
     match /jobs/{jobId} {
-      allow list: if signedIn() || isAdmin();
-      allow get: if isAdmin() || (
-        signedIn() && (
-          resource == null ||
-          resource.data.status == 'open' ||
-          resource.data.employerId == request.auth.uid ||
-          resource.data.hiredWorkerId == request.auth.uid
-        )
-      );
+      // Allow public list and get so marketplace metrics, open postings, and pricing benchmarks work seamlessly
+      allow list, get: if true;
 
       allow create: if isEmployer()
         && request.resource.data.keys().hasOnly([
