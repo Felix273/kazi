@@ -1,10 +1,13 @@
+import 'dart:io';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 
 import '../models/chat_model.dart';
 
 class ChatService {
   static final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  static final FirebaseStorage _storage = FirebaseStorage.instance;
 
   static String chatIdFor(String jobId, String workerId) =>
       '${jobId}_$workerId';
@@ -62,6 +65,10 @@ class ChatService {
     final chatRef = _firestore.collection('chats').doc(chatId);
     final messageRef = chatRef.collection('messages').doc();
     final batch = _firestore.batch();
+    final displayText = trimmedText.isNotEmpty
+        ? trimmedText
+        : (imageUrl != null ? '📷 Photo' : '');
+
     batch.set(messageRef, {
       'chatId': chatId,
       'senderId': senderId,
@@ -71,12 +78,31 @@ class ChatService {
       'read': false,
     });
     batch.update(chatRef, {
-      'lastMessage': trimmedText,
+      'lastMessage': displayText,
       'lastMessageAt': FieldValue.serverTimestamp(),
       'lastMessageSenderId': senderId,
       'updatedAt': FieldValue.serverTimestamp(),
     });
     await batch.commit();
+  }
+
+  static Future<void> sendImageAttachment({
+    required String chatId,
+    required String senderId,
+    required File imageFile,
+    String caption = '',
+  }) async {
+    final fileName = '${DateTime.now().millisecondsSinceEpoch}.jpg';
+    final ref = _storage.ref().child('chat_attachments/$chatId/$fileName');
+    final uploadTask = await ref.putFile(imageFile);
+    final downloadUrl = await uploadTask.ref.getDownloadURL();
+
+    await sendMessage(
+      chatId: chatId,
+      senderId: senderId,
+      text: caption,
+      imageUrl: downloadUrl,
+    );
   }
 
   static Future<void> markAsRead(String chatId, String userId) async {
