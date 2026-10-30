@@ -2,7 +2,7 @@
 
 import React from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import { signOut } from "firebase/auth";
 import { auth } from "@/lib/firebase";
 import { useAuth } from "@/context/AuthContext";
@@ -15,7 +15,6 @@ import {
   DollarSign,
   MapPin,
   Shield,
-  CheckCircle2,
   LogOut,
   LogIn,
   UserCheck,
@@ -24,6 +23,12 @@ import {
 export default function SidebarNav() {
   const { user } = useAuth();
   const router = useRouter();
+  const pathname = usePathname();
+
+  // Do not render sidebar when user is on login screen
+  if (pathname === "/login") {
+    return null;
+  }
 
   const handleSignOut = async () => {
     try {
