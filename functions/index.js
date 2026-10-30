@@ -1261,26 +1261,40 @@ exports.notifyNearbyJobSeekers = functions
     const tokens = workers.docs
       .map((document) => document.data())
       .filter((worker) => {
+        if (!worker.fcmToken) return false;
+        if (worker.enableJobAlerts === false) return false;
+        if (worker.notificationSettings?.newJobs === false) return false;
+        if (!jobLocation) return false;
+
+        const maxRadius = Number(worker.preferredRadiusKm || 10.0);
+
+        // Neighborhood matching fallback or GPS distance matching
         if (
-          !worker.fcmToken ||
-          worker.notificationSettings?.newJobs === false ||
-          !jobLocation
-        ) return false;
+          worker.neighborhood &&
+          job.neighborhood &&
+          worker.neighborhood.toLowerCase().trim() === job.neighborhood.toLowerCase().trim()
+        ) {
+          return true;
+        }
+
         const latitude = Number(worker.lat);
         const longitude = Number(worker.lng);
         if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return false;
+
         return distanceKm(
           { latitude, longitude },
           { latitude: jobLocation.latitude, longitude: jobLocation.longitude },
-        ) <= 10;
+        ) <= maxRadius;
       })
       .map((worker) => worker.fcmToken);
+
     if (tokens.length === 0) return null;
+
     return messaging.sendEachForMulticast({
       tokens,
       notification: {
-        title: job.isUrgent ? 'Urgent Job!' : 'New Job Nearby',
-        body: `${job.title} — ${job.neighborhood} — KES ${job.salaryKES}`,
+        title: job.isUrgent ? 'Urgent Job Nearby!' : 'New Job Nearby',
+        body: `${job.title} — ${job.neighborhood || 'Nairobi'} — KES ${job.salaryKES}`,
       },
       data: { type: 'KAZI_NEW_JOB', jobId: context.params.jobId },
     });

@@ -112,8 +112,9 @@ class NotificationService {
   static void _handleNotificationNavigation(RemoteMessage message) {
     final data = message.data;
     final type = data['type'] as String?;
+    final jobId = data['jobId'] as String?;
 
-    debugPrint('Navigating for notification type: $type');
+    debugPrint('Navigating for notification type: $type, jobId: $jobId');
 
     final context = rootNavigatorKey.currentContext;
     if (context == null) return;
@@ -123,7 +124,11 @@ class NotificationService {
       case 'job_completed':
       case 'KAZI_HIRED':
       case 'KAZI_PAYMENT':
-        context.go('/jobseeker/home');
+        if (jobId != null && jobId.isNotEmpty) {
+          context.go('/job/$jobId');
+        } else {
+          context.go('/jobseeker/home');
+        }
         break;
       case 'chat_message':
         final chatId = data['chatId'] as String?;
@@ -137,10 +142,19 @@ class NotificationService {
         context.go('/settings');
         break;
       case 'KAZI_NEW_JOB':
-        context.go('/jobseeker/home');
+      case 'new_job':
+        if (jobId != null && jobId.isNotEmpty) {
+          context.go('/job/$jobId');
+        } else {
+          context.go('/jobseeker/home');
+        }
         break;
       default:
-        context.go('/jobseeker/home');
+        if (jobId != null && jobId.isNotEmpty) {
+          context.go('/job/$jobId');
+        } else {
+          context.go('/jobseeker/home');
+        }
         break;
     }
   }
