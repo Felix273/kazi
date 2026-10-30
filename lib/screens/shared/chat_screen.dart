@@ -1,5 +1,7 @@
+import 'dart:io';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 
 import '../../models/chat_model.dart';
@@ -27,6 +29,7 @@ class ChatScreen extends StatefulWidget {
 class _ChatScreenState extends State<ChatScreen> {
   final _messageController = TextEditingController();
   final _composerFocusNode = FocusNode();
+  final _imagePicker = ImagePicker();
 
   bool _isSending = false;
   bool _hasDraft = false;
@@ -102,6 +105,87 @@ class _ChatScreenState extends State<ChatScreen> {
         setState(() => _isSending = false);
       }
     }
+  }
+
+  Future<void> _pickAndAttachImage(ImageSource source) async {
+    final userId = _currentUserId;
+    if (userId == null || _isSending) return;
+
+    try {
+      final XFile? pickedFile = await _imagePicker.pickImage(
+        source: source,
+        imageQuality: 80,
+        maxWidth: 1200,
+      );
+
+      if (pickedFile == null) return;
+
+      setState(() => _isSending = true);
+
+      final file = File(pickedFile.path);
+      final text = _messageController.text.trim();
+
+      await ChatService.sendImageAttachment(
+        chatId: widget.chatId,
+        senderId: userId,
+        imageFile: file,
+        caption: text,
+      );
+
+      if (!mounted) return;
+
+      _messageController.clear();
+      setState(() => _hasDraft = false);
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Could not upload photo attachment. Try again.'),
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _isSending = false);
+      }
+    }
+  }
+
+  void _showAttachmentPicker() {
+    showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      builder: (sheetContext) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(
+              horizontal: AppSpacing.lg,
+              vertical: AppSpacing.md,
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: [
+                _AttachmentOption(
+                  icon: Icons.photo_library_rounded,
+                  label: 'Gallery',
+                  onTap: () {
+                    Navigator.pop(sheetContext);
+                    _pickAndAttachImage(ImageSource.gallery);
+                  },
+                ),
+                _AttachmentOption(
+                  icon: Icons.camera_alt_rounded,
+                  label: 'Camera',
+                  onTap: () {
+                    Navigator.pop(sheetContext);
+                    _pickAndAttachImage(ImageSource.camera);
+                  },
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
   }
 
   @override
@@ -203,6 +287,7 @@ class _ChatScreenState extends State<ChatScreen> {
               enabled: userId != null,
               hasDraft: _hasDraft,
               isSending: _isSending,
+              onAttach: _showAttachmentPicker,
               onChanged: (value) {
                 final hasDraft = value.trim().isNotEmpty;
 
@@ -292,6 +377,51 @@ class _ChatScreenState extends State<ChatScreen> {
           ),
         );
       },
+    );
+  }
+}
+
+class _AttachmentOption extends StatelessWidget {
+  const _AttachmentOption({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(AppRadius.md),
+      child: Padding(
+        padding: const EdgeInsets.all(AppSpacing.md),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            CircleAvatar(
+              radius: 28,
+              backgroundColor: scheme.primaryContainer,
+              foregroundColor: scheme.onPrimaryContainer,
+              child: Icon(icon, size: 26),
+            ),
+            const SizedBox(height: AppSpacing.xs),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+                color: scheme.onSurface,
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
@@ -406,6 +536,7 @@ class _MessageBubble extends StatelessWidget {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
     final maxWidth = MediaQuery.sizeOf(context).width * 0.76;
+    final hasImage = message.imageUrl != null && message.imageUrl!.isNotEmpty;
 
     return Padding(
       padding: EdgeInsets.only(
@@ -467,13 +598,35 @@ class _MessageBubble extends StatelessWidget {
                     ? CrossAxisAlignment.end
                     : CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    message.text,
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      color: isMine ? scheme.onPrimary : scheme.onSurface,
-                      height: 1.4,
+                  if (hasImage) ...[
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(AppRadius.sm),
+                      child: Image.network(
+                        message.imageUrl!,
+                        fit: BoxFit.cover,
+                        loadingBuilder: (context, child, loadingProgress) {
+                          if (loadingProgress == null) return child;
+                          return Container(
+                            height: 160,
+                            color: scheme.surfaceContainerHighest,
+                            child: const Center(
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            ),
+                          );
+                        },
+                      ),
                     ),
-                  ),
+                    if (message.text.isNotEmpty)
+                      const SizedBox(height: AppSpacing.xs),
+                  ],
+                  if (message.text.isNotEmpty)
+                    Text(
+                      message.text,
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: isMine ? scheme.onPrimary : scheme.onSurface,
+                        height: 1.4,
+                      ),
+                    ),
                   const SizedBox(height: AppSpacing.xs),
                   Row(
                     mainAxisSize: MainAxisSize.min,
@@ -514,6 +667,7 @@ class _MessageComposer extends StatelessWidget {
     required this.enabled,
     required this.hasDraft,
     required this.isSending,
+    required this.onAttach,
     required this.onChanged,
     required this.onSend,
   });
@@ -523,6 +677,7 @@ class _MessageComposer extends StatelessWidget {
   final bool enabled;
   final bool hasDraft;
   final bool isSending;
+  final VoidCallback onAttach;
   final ValueChanged<String> onChanged;
   final VoidCallback onSend;
 
@@ -543,6 +698,12 @@ class _MessageComposer extends StatelessWidget {
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.end,
           children: [
+            IconButton(
+              tooltip: 'Attach photo',
+              onPressed: enabled && !isSending ? onAttach : null,
+              icon: const Icon(Icons.attach_file_rounded),
+            ),
+            const SizedBox(width: AppSpacing.xxs),
             Expanded(
               child: TextField(
                 controller: controller,
@@ -556,7 +717,6 @@ class _MessageComposer extends StatelessWidget {
                   hintText: enabled
                       ? 'Write a message'
                       : 'Sign in to send messages',
-                  prefixIcon: const Icon(Icons.chat_bubble_outline_rounded),
                   filled: true,
                   fillColor: scheme.surfaceContainerHighest,
                   border: OutlineInputBorder(
