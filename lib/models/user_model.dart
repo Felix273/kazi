@@ -17,6 +17,9 @@ class UserModel {
   final double averageRating;
   final int totalJobsCompleted;
   final bool isAvailable;
+  final bool enableJobAlerts;
+  final bool enableStatusAlerts;
+  final double preferredRadiusKm;
   final DateTime createdAt;
 
   UserModel({
@@ -36,6 +39,9 @@ class UserModel {
     this.averageRating = 0.0,
     this.totalJobsCompleted = 0,
     this.isAvailable = true,
+    this.enableJobAlerts = true,
+    this.enableStatusAlerts = true,
+    this.preferredRadiusKm = 10.0,
     required this.createdAt,
   });
 
@@ -58,6 +64,9 @@ class UserModel {
       averageRating: (map['averageRating'] as num?)?.toDouble() ?? 0.0,
       totalJobsCompleted: map['totalJobsCompleted'] as int? ?? 0,
       isAvailable: map['isAvailable'] as bool? ?? true,
+      enableJobAlerts: map['enableJobAlerts'] as bool? ?? true,
+      enableStatusAlerts: map['enableStatusAlerts'] as bool? ?? true,
+      preferredRadiusKm: (map['preferredRadiusKm'] as num?)?.toDouble() ?? 10.0,
       createdAt: (map['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
     );
   }
@@ -79,6 +88,9 @@ class UserModel {
       'averageRating': averageRating,
       'totalJobsCompleted': totalJobsCompleted,
       'isAvailable': isAvailable,
+      'enableJobAlerts': enableJobAlerts,
+      'enableStatusAlerts': enableStatusAlerts,
+      'preferredRadiusKm': preferredRadiusKm,
       'createdAt': Timestamp.fromDate(createdAt),
     };
   }
@@ -99,6 +111,9 @@ class UserModel {
     double? averageRating,
     int? totalJobsCompleted,
     bool? isAvailable,
+    bool? enableJobAlerts,
+    bool? enableStatusAlerts,
+    double? preferredRadiusKm,
     DateTime? createdAt,
   }) {
     return UserModel(
@@ -118,6 +133,9 @@ class UserModel {
       averageRating: averageRating ?? this.averageRating,
       totalJobsCompleted: totalJobsCompleted ?? this.totalJobsCompleted,
       isAvailable: isAvailable ?? this.isAvailable,
+      enableJobAlerts: enableJobAlerts ?? this.enableJobAlerts,
+      enableStatusAlerts: enableStatusAlerts ?? this.enableStatusAlerts,
+      preferredRadiusKm: preferredRadiusKm ?? this.preferredRadiusKm,
       createdAt: createdAt ?? this.createdAt,
     );
   }

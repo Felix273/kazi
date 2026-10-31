@@ -21,6 +21,7 @@ class _NotificationSettingsScreenState
   bool _chatNotifications = true;
   bool _paymentNotifications = true;
   bool _promotionalNotifications = false;
+  double _preferredRadiusKm = 10.0;
 
   bool _loading = true;
   bool _saving = false;
@@ -28,12 +29,12 @@ class _NotificationSettingsScreenState
   String? _loadError;
 
   int get _enabledCount => [
-    _newJobNotifications,
-    _applicationNotifications,
-    _chatNotifications,
-    _paymentNotifications,
-    _promotionalNotifications,
-  ].where((enabled) => enabled).length;
+        _newJobNotifications,
+        _applicationNotifications,
+        _chatNotifications,
+        _paymentNotifications,
+        _promotionalNotifications,
+      ].where((enabled) => enabled).length;
 
   @override
   void initState() {
@@ -65,18 +66,22 @@ class _NotificationSettingsScreenState
           .doc(userId)
           .get();
 
+      final data = document.data() ?? {};
       final settings = Map<String, dynamic>.from(
-        document.data()?['notificationSettings'] as Map? ?? const {},
+        data['notificationSettings'] as Map? ?? const {},
       );
 
       if (!mounted) return;
 
       setState(() {
-        _newJobNotifications = settings['newJobs'] as bool? ?? true;
-        _applicationNotifications = settings['applications'] as bool? ?? true;
+        _newJobNotifications =
+            data['enableJobAlerts'] as bool? ?? (settings['newJobs'] as bool? ?? true);
+        _applicationNotifications =
+            data['enableStatusAlerts'] as bool? ?? (settings['applications'] as bool? ?? true);
         _chatNotifications = settings['chat'] as bool? ?? true;
         _paymentNotifications = settings['payments'] as bool? ?? true;
         _promotionalNotifications = settings['promotions'] as bool? ?? false;
+        _preferredRadiusKm = (data['preferredRadiusKm'] as num?)?.toDouble() ?? 10.0;
         _loading = false;
       });
     } catch (_) {
@@ -97,6 +102,9 @@ class _NotificationSettingsScreenState
     }
 
     await FirebaseFirestore.instance.collection('users').doc(userId).set({
+      'enableJobAlerts': _newJobNotifications,
+      'enableStatusAlerts': _applicationNotifications,
+      'preferredRadiusKm': _preferredRadiusKm,
       'notificationSettings': {
         'newJobs': _newJobNotifications,
         'applications': _applicationNotifications,
@@ -187,6 +195,9 @@ class _NotificationSettingsScreenState
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+
     return Scaffold(
       body: RefreshIndicator(
         onRefresh: _loadSettings,
@@ -244,6 +255,83 @@ class _NotificationSettingsScreenState
                   child: _NotificationIntroduction(enabledCount: _enabledCount),
                 ),
               ),
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: AppSpacing.lg,
+                  ),
+                  child: Card(
+                    margin: EdgeInsets.zero,
+                    child: Padding(
+                      padding: const EdgeInsets.all(AppSpacing.lg),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              CircleAvatar(
+                                radius: 20,
+                                backgroundColor: scheme.primaryContainer,
+                                foregroundColor: scheme.onPrimaryContainer,
+                                child: const Icon(Icons.near_me_rounded, size: 19),
+                              ),
+                              const SizedBox(width: AppSpacing.md),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      'Job Alert Search Radius',
+                                      style: theme.textTheme.titleMedium?.copyWith(
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                    Text(
+                                      'Receive instant alerts for jobs posted within ${_preferredRadiusKm.toInt()} km.',
+                                      style: theme.textTheme.bodySmall?.copyWith(
+                                        color: scheme.onSurfaceVariant,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: AppSpacing.md),
+                          Row(
+                            children: [
+                              const Text('2 km', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                              Expanded(
+                                child: Slider.adaptive(
+                                  value: _preferredRadiusKm,
+                                  min: 2.0,
+                                  max: 50.0,
+                                  divisions: 24,
+                                  label: '${_preferredRadiusKm.toInt()} km',
+                                  onChanged: (val) {
+                                    setState(() {
+                                      _preferredRadiusKm = val;
+                                    });
+                                  },
+                                  onChangeEnd: (val) {
+                                    final previous = _preferredRadiusKm;
+                                    _updateSetting(
+                                      update: () => _preferredRadiusKm = val,
+                                      rollback: () => _preferredRadiusKm = previous,
+                                    );
+                                  },
+                                ),
+                              ),
+                              const Text('50 km', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: AppSpacing.md),
               SliverToBoxAdapter(
                 child: Padding(
                   padding: const EdgeInsets.symmetric(
@@ -501,75 +589,75 @@ class _NotificationHero extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                  Container(
-                    width: 49,
-                    height: 49,
-                    alignment: Alignment.center,
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.16),
-                      borderRadius: BorderRadius.circular(AppRadius.md),
-                      border: Border.all(color: Colors.white24),
+                    Container(
+                      width: 49,
+                      height: 49,
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.16),
+                        borderRadius: BorderRadius.circular(AppRadius.md),
+                        border: Border.all(color: Colors.white24),
+                      ),
+                      child: const Icon(
+                        Icons.notifications_active_outlined,
+                        color: AppTheme.accentGold,
+                        size: 25,
+                      ),
                     ),
-                    child: const Icon(
-                      Icons.notifications_active_outlined,
-                      color: AppTheme.accentGold,
-                      size: 25,
+                    const SizedBox(height: AppSpacing.lg),
+                    const Text(
+                      'Stay informed.',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 31,
+                        height: 1.08,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: -0.8,
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: AppSpacing.lg),
-                  const Text(
-                    'Stay informed.',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 31,
-                      height: 1.08,
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: -0.8,
+                    const SizedBox(height: AppSpacing.sm),
+                    const Text(
+                      'Choose the updates that matter and keep unnecessary alerts quiet.',
+                      style: TextStyle(
+                        color: Colors.white70,
+                        fontSize: 14,
+                        height: 1.45,
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: AppSpacing.sm),
-                  const Text(
-                    'Choose the updates that matter and keep unnecessary alerts quiet.',
-                    style: TextStyle(
-                      color: Colors.white70,
-                      fontSize: 14,
-                      height: 1.45,
-                    ),
-                  ),
-                  const SizedBox(height: AppSpacing.xl),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: AppSpacing.md,
-                      vertical: AppSpacing.sm,
-                    ),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.14),
-                      borderRadius: BorderRadius.circular(AppRadius.pill),
-                      border: Border.all(color: Colors.white24),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(
-                          Icons.check_circle_outline_rounded,
-                          size: 18,
-                          color: AppTheme.accentGold,
-                        ),
-                        const SizedBox(width: AppSpacing.xs),
-                        Text(
-                          '$enabledCount of 5 categories enabled',
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w700,
+                    const SizedBox(height: AppSpacing.xl),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: AppSpacing.md,
+                        vertical: AppSpacing.sm,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.14),
+                        borderRadius: BorderRadius.circular(AppRadius.pill),
+                        border: Border.all(color: Colors.white24),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(
+                            Icons.check_circle_outline_rounded,
+                            size: 18,
+                            color: AppTheme.accentGold,
                           ),
-                        ),
-                      ],
+                          const SizedBox(width: AppSpacing.xs),
+                          Text(
+                            '$enabledCount of 5 categories enabled',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
-            ),
             ),
           ),
         ],
